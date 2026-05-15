@@ -1,0 +1,13 @@
+{
+  "report_title": "分析报告",
+  "exec_summary": "执行摘要",
+  "methodology": "方法论",
+  "brand_health": "品牌健康度",
+  "weak_links": "薄弱环节",
+  "takeaways": "关键结论",
+  "confidential": "机密 - 仅供内部使用",
+  "prepared_by": "由 Analytics 团队准备",
+  "date_format": "YYYY年MMMM",
+  "page": "页",
+  "of": "/"
+}

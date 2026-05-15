@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+httpx
+google-cloud-bigquery
+pydantic
+pydantic-settings
+sqlalchemy
+asyncpg
+aiosqlite
+langgraph
+litellm
+python-pptx
+jinja2
+weasyprint

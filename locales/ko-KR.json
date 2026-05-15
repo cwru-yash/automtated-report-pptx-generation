@@ -1,0 +1,13 @@
+{
+  "report_title": "분석 보고서",
+  "exec_summary": "요약",
+  "methodology": "방법론",
+  "brand_health": "브랜드 건강도",
+  "weak_links": "취약 지점",
+  "takeaways": "핵심 시사점",
+  "confidential": "기밀 - 내부 사용 전용",
+  "prepared_by": "Analytics 팀 작성",
+  "date_format": "YYYY년 MMMM",
+  "page": "페이지",
+  "of": "/"
+}
