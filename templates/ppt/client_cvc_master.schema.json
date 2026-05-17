@@ -1,0 +1,9 @@
+{
+  "placeholders": [
+    { "name": "exec_summary", "type": "text" },
+    { "name": "methodology", "type": "text" },
+    { "name": "brand_health", "type": "text" },
+    { "name": "weak_links", "type": "text" },
+    { "name": "takeaways", "type": "text" }
+  ]
+}

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Report Console</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Automated Report Platform</p>
+      <h1>Report Console</h1>
+    </div>
+    <div class="health" id="health-pill">Checking API</div>
+  </header>
+
+  <main class="workspace">
+    <section class="controls" aria-label="Report controls">
+      <div class="field">
+        <label for="wave-id">Wave ID</label>
+        <input id="wave-id" type="text" value="demo-wave">
+      </div>
+
+      <div class="field">
+        <label for="template-id">Template</label>
+        <select id="template-id"></select>
+        <p class="hint" id="template-status">Loading templates</p>
+      </div>
+
+      <fieldset class="field languages">
+        <legend>Languages</legend>
+        <div id="language-options" class="language-grid"></div>
+      </fieldset>
+
+      <div class="toggles">
+        <label><input id="use-llm" type="checkbox" checked> Real LLM output</label>
+        <label><input id="require-llm" type="checkbox" checked> Require LLM</label>
+        <label><input id="include-pdf" type="checkbox" checked> PDF export</label>
+      </div>
+
+      <button id="generate-button" type="button">Generate Reports</button>
+    </section>
+
+    <section class="results" aria-label="Generation results">
+      <div class="section-head">
+        <h2>Runs</h2>
+        <div class="section-actions">
+          <span id="run-summary">No runs yet</span>
+          <a id="batch-log-link" href="#" target="_blank" rel="noreferrer" hidden>Batch Log</a>
+        </div>
+      </div>
+      <div id="results-list" class="results-list"></div>
+    </section>
+  </main>
+
+  <template id="result-template">
+    <article class="result-row">
+      <div class="result-meta">
+        <strong class="result-language"></strong>
+        <span class="result-status"></span>
+      </div>
+      <div class="result-artifacts"></div>
+      <p class="result-warning"></p>
+    </article>
+  </template>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

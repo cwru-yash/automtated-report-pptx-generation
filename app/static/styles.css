@@ -1,0 +1,280 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --ink: #1d2733;
+  --muted: #617182;
+  --line: #d8e0e8;
+  --accent: #116466;
+  --accent-strong: #0b4f51;
+  --gold: #b8891f;
+  --success: #16794c;
+  --warning: #9a6112;
+  --danger: #b42318;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.4;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  padding: 1.5rem clamp(1rem, 3vw, 2.5rem);
+}
+
+.eyebrow {
+  margin: 0 0 0.25rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0;
+}
+
+h1 {
+  font-size: 1.6rem;
+}
+
+h2 {
+  font-size: 1rem;
+}
+
+.health {
+  min-width: 7rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.45rem 0.7rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.health.ok {
+  border-color: rgba(22, 121, 76, 0.35);
+  color: var(--success);
+}
+
+.health.bad {
+  border-color: rgba(180, 35, 24, 0.35);
+  color: var(--danger);
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(20rem, 24rem) minmax(24rem, 1fr);
+  gap: 1.25rem;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.controls,
+.results {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.controls {
+  align-self: start;
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+label,
+legend {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+input[type="text"],
+select {
+  width: 100%;
+  min-height: 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 0.75rem;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+.hint {
+  min-height: 1.1rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.hint.ok {
+  color: var(--success);
+}
+
+.hint.bad {
+  color: var(--danger);
+}
+
+.language-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.language-grid label,
+.toggles label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.25rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.45rem 0.65rem;
+  font-weight: 400;
+}
+
+.toggles {
+  display: grid;
+  gap: 0.55rem;
+}
+
+button {
+  min-height: 2.7rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--accent-strong);
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.results {
+  min-height: 24rem;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.4rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0 1.25rem;
+}
+
+.section-head span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.section-actions a,
+.result-artifacts a {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  padding: 0.45rem 0.7rem;
+  text-decoration: none;
+}
+
+.section-actions a:hover,
+.result-artifacts a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.results-list {
+  display: grid;
+}
+
+.result-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 12rem) minmax(18rem, 1fr);
+  gap: 1rem;
+  border-bottom: 1px solid var(--line);
+  padding: 1rem 1.25rem;
+}
+
+.result-meta {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+}
+
+.result-status {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.result-status.completed {
+  color: var(--success);
+}
+
+.result-status.failed {
+  color: var(--danger);
+}
+
+.result-artifacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.result-warning {
+  grid-column: 2;
+  margin: 0;
+  color: var(--warning);
+  font-size: 0.84rem;
+}
+
+@media (max-width: 860px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .result-row {
+    grid-template-columns: 1fr;
+  }
+
+  .result-warning {
+    grid-column: auto;
+  }
+}

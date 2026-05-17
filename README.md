@@ -70,8 +70,10 @@ The repo is still early, but the demo path works end to end. The API can:
 - list available templates
 - inspect PowerPoint placeholders
 - create a report job in one request
+- create one multilingual batch with child jobs per language
 - generate HTML, PPTX, and PDF artifacts
 - run with real LLM copy or deterministic fallback copy when you just need a reliable rehearsal
+- expose structured batch and child-job logs for debugging
 
 If you want the exact demo flow, start with `docs/demo-dry-run.md`.
 
@@ -106,6 +108,29 @@ curl -X POST http://127.0.0.1:8000/api/v1/jobs \
 ```
 
 Outputs land in `artifacts/`.
+
+For a multilingual request, use the batch endpoint so one parent ID groups all
+language-specific children:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/batches \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "wave_id": "demo-wave",
+    "languages": ["en-US", "pt-BR"],
+    "template_id": "client_cvc_master",
+    "use_llm": true,
+    "require_llm": true,
+    "include_pdf": true
+  }'
+```
+
+Structured JSONL logs land in `logs/`, and can also be queried through the API:
+
+```bash
+curl http://127.0.0.1:8000/api/v1/batches/<batch_id>/logs
+curl http://127.0.0.1:8000/api/v1/jobs/<job_id>/logs
+```
 
 ## Templates
 

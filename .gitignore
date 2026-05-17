@@ -11,3 +11,5 @@ venv/
 *.pptx
 *.pdf
 *.html
+!app/static/*.html
+logs/

@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     TEMPLATES_DIR: str = "templates/"
     LOCALES_DIR: str = "locales/"
+    LOGS_DIR: str = "logs/"
     LLM_MODEL: str = "anthropic/claude-3-5-haiku-latest"
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 700
