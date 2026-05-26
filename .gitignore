@@ -13,3 +13,12 @@ venv/
 *.html
 !app/static/*.html
 logs/
+artifacts/
+
+output/*.pptx
+output/*.pdf
+output/*.html
+output/*.png
+# Credentials and local databases
+gcp-key.json
+*.db

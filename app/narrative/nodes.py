@@ -91,54 +91,170 @@ def _bundle_context(bundle: AnalysisBundle) -> str:
     )
 
 
+def _metric_summary(bundle: AnalysisBundle) -> str:
+    labels = {
+        "nps": "NPS",
+        "brand_awareness": "brand awareness",
+        "cvc_score": "CVC score",
+        "weighted_score": "weighted score",
+        "concept_points": "quality concept points",
+        "briefing_adherence_pct": "briefing adherence",
+        "average_satisfaction_index": "average satisfaction index",
+        "total_review_count": "total review count",
+    }
+    parts = [
+        f"{labels.get(key, key.replace('_', ' '))} {value}"
+        for key, value in bundle.metrics.items()
+    ]
+    return ", ".join(parts) or "the approved qualitative analysis outputs"
+
+
+def _analysis_result(bundle: AnalysisBundle, key: str) -> Dict[str, Any]:
+    analysis = bundle.analysis_results.get(key) or {}
+    result = analysis.get("result") if isinstance(analysis, dict) else {}
+    return result or {}
+
+
+def _top_best_of_best_gaps(bundle: AnalysisBundle, limit: int = 3) -> list[dict]:
+    activities = _analysis_result(bundle, "analysis_7").get("activities") or []
+    return sorted(
+        [item for item in activities if item.get("gap") is not None],
+        key=lambda item: item.get("gap", 0),
+        reverse=True,
+    )[:limit]
+
+
+def _achilles_links(bundle: AnalysisBundle) -> list[dict]:
+    return _analysis_result(bundle, "analysis_6").get("links") or []
+
+
+def _industry_curve_extremes(bundle: AnalysisBundle) -> tuple[dict | None, dict | None]:
+    activities = _analysis_result(bundle, "analysis_1").get("activities") or []
+    scored = [item for item in activities if item.get("industry_avg") is not None]
+    if not scored:
+        return None, None
+    return (
+        max(scored, key=lambda item: item.get("industry_avg", 0)),
+        min(scored, key=lambda item: item.get("industry_avg", 0)),
+    )
+
+
 def _fallback_section(section_key: str, bundle: AnalysisBundle) -> Dict[str, str]:
-    nps = bundle.metrics.get("nps", 0)
-    awareness = bundle.metrics.get("brand_awareness", 0)
-    cvc = bundle.metrics.get("cvc_score", 0)
+    metric_summary = _metric_summary(bundle)
+    cvc = bundle.metrics.get("cvc_score")
+    avg_satisfaction = bundle.metrics.get("average_satisfaction_index")
+    quality_points = bundle.metrics.get("concept_points")
+    review_count = bundle.metrics.get("total_review_count")
     weak_links = ", ".join(bundle.analysis_results.get("weak_links", [])) or "known friction points"
+    strong_links = ", ".join(bundle.analysis_results.get("strong_links", [])) or "the strongest completed analyses"
     takeaways = ", ".join(bundle.analysis_results.get("takeaways", [])) or "prioritized action planning"
+    best_gaps = _top_best_of_best_gaps(bundle)
+    achilles = _achilles_links(bundle)
+    strongest_activity, weakest_activity = _industry_curve_extremes(bundle)
+
+    if best_gaps:
+        takeaways = ", ".join(str(item.get("activity_code")) for item in best_gaps)
+
+    if achilles:
+        weak_links = ", ".join(str(item.get("activity_code")) for item in achilles)
+
+    brand_health_text = (
+        f"Brand Health: The approved metrics currently available are {metric_summary}. "
+        "This means the brand health read should stay anchored to the quality record "
+        "and completed analysis outputs, rather than inventing missing survey metrics."
+    )
+    brand_health_ppt = f"Brand health is grounded in {metric_summary}."
+    if avg_satisfaction is not None:
+        review_clause = f" across {int(review_count)} reviews" if review_count else ""
+        quality_clause = f" with quality points at {quality_points}" if quality_points is not None else ""
+        brand_health_text = (
+            f"Brand Health: Average satisfaction index is {avg_satisfaction}{review_clause}{quality_clause}. "
+            "This gives the report a real experience baseline to interpret alongside "
+            "the quality record and the completed analysis outputs."
+        )
+        brand_health_ppt = f"Average satisfaction index is {avg_satisfaction}."
+
+    if strongest_activity and weakest_activity:
+        curve_sentence = (
+            f"The industry curve peaks at {strongest_activity.get('activity_code')} "
+            f"({strongest_activity.get('industry_avg')}) and bottoms at "
+            f"{weakest_activity.get('activity_code')} ({weakest_activity.get('industry_avg')})."
+        )
+    else:
+        curve_sentence = "The completed analyses identify where the value chain performs strongest and weakest."
+
+    if achilles:
+        primary = achilles[0]
+        weak_links_report = (
+            f"Weak Links: {primary.get('activity_code')} is the clearest vulnerability. "
+            f"The focus brand scores {primary.get('brand_score')} against an industry average "
+            f"of {primary.get('industry_avg')}, a gap of {primary.get('delta')}. "
+            "This is the first operational area to inspect before broadening the improvement plan."
+        )
+        weak_links_ppt = (
+            f"{primary.get('activity_code')}: focus brand {primary.get('brand_score')} "
+            f"vs industry {primary.get('industry_avg')}."
+        )
+    else:
+        weak_links_report = (
+            f"Weak Links: The highest-priority friction areas are {weak_links}. "
+            "These are the operational points most likely to suppress satisfaction "
+            "or weaken the customer's experience across the value chain."
+        )
+        weak_links_ppt = (
+            f"CVC {cvc} points to friction around {weak_links}."
+            if cvc is not None
+            else f"Weak-link evidence points to friction around {weak_links}."
+        )
+
+    if best_gaps:
+        gap_text = ", ".join(
+            f"{item.get('activity_code')} gap {item.get('gap')}"
+            for item in best_gaps
+        )
+        takeaways_report = (
+            f"Key Takeaways: Prioritize closing the largest Best of Best gaps: {gap_text}. "
+            "These activities show where the category leader is setting a higher bar than "
+            "the focus brand, and they give the team a practical sequence for improvement."
+        )
+        takeaways_ppt = f"Close the largest gaps first: {gap_text}."
+    else:
+        takeaways_report = (
+            f"Key Takeaways: The recommended actions are {takeaways}. The strongest "
+            f"positive evidence is {strong_links}, while the weak-link evidence shows "
+            "where execution should improve first."
+        )
+        takeaways_ppt = f"Prioritize {takeaways} while protecting {strong_links}."
 
     fallback = {
         "exec_summary": {
             "report_text": (
-                f"Executive Summary: The wave shows NPS at {nps}, brand awareness at "
-                f"{awareness}, and CVC score at {cvc}. The pattern suggests a brand with "
-                "solid visibility but clear room to convert that visibility into stronger "
-                "customer advocacy."
+                f"Executive Summary: The wave's approved metrics are {metric_summary}. "
+                f"{curve_sentence} The most actionable weakness is {weak_links}, while "
+                "the Best of Best comparison shows where the focus brand can close the "
+                "largest competitive experience gaps."
             ),
-            "ppt_text": f"NPS {nps}, awareness {awareness}, CVC {cvc}: visibility is ahead of advocacy.",
+            "ppt_text": f"Avg satisfaction {avg_satisfaction}; priority gap area: {weak_links}.",
         },
         "methodology": {
             "report_text": (
-                f"Methodology: This report was assembled from the canonical analysis bundle "
-                f"for wave {bundle.wave_id}. The narrative uses only approved bundle metrics "
-                f"such as NPS {nps}, awareness {awareness}, and CVC {cvc}."
+                "Methodology: This report was assembled from the canonical analysis bundle. "
+                f"The narrative uses only approved bundle metrics such as {metric_summary}, "
+                "plus completed analysis results and provenance metadata from the source data."
             ),
-            "ppt_text": f"Generated from wave {bundle.wave_id} using approved bundle metrics only.",
+            "ppt_text": f"Generated from approved bundle metrics: {metric_summary}.",
         },
         "brand_health": {
-            "report_text": (
-                f"Brand Health: Awareness is {awareness}, while NPS is {nps}. This indicates "
-                "that recognition is present, but the experience still needs to create more "
-                "active recommendation and loyalty."
-            ),
-            "ppt_text": f"Awareness {awareness} is stronger than advocacy at NPS {nps}.",
+            "report_text": brand_health_text,
+            "ppt_text": brand_health_ppt,
         },
         "weak_links": {
-            "report_text": (
-                f"Weak Links: With CVC at {cvc}, the highest-priority friction areas are "
-                f"{weak_links}. These are the operational points most likely to suppress "
-                "conversion from awareness into stronger satisfaction."
-            ),
-            "ppt_text": f"CVC {cvc} points to friction around {weak_links}.",
+            "report_text": weak_links_report,
+            "ppt_text": weak_links_ppt,
         },
         "takeaways": {
-            "report_text": (
-                f"Key Takeaways: The recommended actions are {takeaways}. The immediate goal "
-                f"is to protect awareness at {awareness} while improving NPS {nps} through "
-                "more consistent customer experience execution."
-            ),
-            "ppt_text": f"Prioritize {takeaways} to turn awareness {awareness} into NPS {nps} gains.",
+            "report_text": takeaways_report,
+            "ppt_text": takeaways_ppt,
         },
     }
     return fallback[section_key]

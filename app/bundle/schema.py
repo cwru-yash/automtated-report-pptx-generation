@@ -14,3 +14,9 @@ class AnalysisBundle(BaseModel):
         default_factory=dict,
         description="Dictionary of findings from analysis runs",
     )
+    gold_activity_version_id: str = Field(
+        default="", description="Provenance ID of the gold activity data"
+    )
+    analysis_run_id: str = Field(
+        default="", description="Provenance ID of the analysis run"
+    )

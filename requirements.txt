@@ -12,3 +12,4 @@ litellm
 python-pptx
 jinja2
 weasyprint
+matplotlib

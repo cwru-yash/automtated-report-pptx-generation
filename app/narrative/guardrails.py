@@ -11,19 +11,21 @@ class FactGuardrail:
         Returns a tuple of (is_valid, error_message).
         """
         # Find all numbers in the text (simple regex for floats/ints)
-        numbers_in_text = set(re.findall(r'\b\d+(?:\.\d+)?\b', text))
+        numbers_in_text = set(re.findall(r'(?<![A-Za-z])-?\d+(?:\.\d+)?(?![A-Za-z])', text))
         
-        metric_values = {FactGuardrail._normalize_number(str(v)) for v in bundle.metrics.values()}
+        approved_numbers = FactGuardrail._collect_numbers(bundle.metrics)
+        approved_numbers.update(FactGuardrail._collect_numbers(bundle.analysis_results))
         
         hallucinated = []
         for num in numbers_in_text:
             # We ignore small integers that might be list numbers (1, 2, 3...) or years
-            if '.' not in num and len(num) < 3 and int(num) < 10:
+            unsigned_num = num.lstrip("-")
+            if '.' not in unsigned_num and len(unsigned_num) < 3 and int(num) < 10:
                 continue
-            if len(num) == 4 and num.startswith('20'):
+            if len(unsigned_num) == 4 and unsigned_num.startswith('20'):
                 continue
                 
-            if FactGuardrail._normalize_number(num) not in metric_values:
+            if FactGuardrail._normalize_number(num) not in approved_numbers:
                 hallucinated.append(num)
                 
         if hallucinated:
@@ -37,3 +39,21 @@ class FactGuardrail:
             return str(Decimal(value).normalize())
         except (InvalidOperation, ValueError):
             return value
+
+    @staticmethod
+    def _collect_numbers(value) -> set[str]:
+        if isinstance(value, bool) or value is None:
+            return set()
+        if isinstance(value, (int, float, Decimal)):
+            return {FactGuardrail._normalize_number(str(value))}
+        if isinstance(value, dict):
+            numbers = set()
+            for child in value.values():
+                numbers.update(FactGuardrail._collect_numbers(child))
+            return numbers
+        if isinstance(value, list):
+            numbers = set()
+            for child in value:
+                numbers.update(FactGuardrail._collect_numbers(child))
+            return numbers
+        return set()

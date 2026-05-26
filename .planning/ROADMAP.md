@@ -12,10 +12,10 @@ Build a multi-format deliverable generation platform in three stages: POC valida
 
 ## Phases
 
-- [ ] **Phase 1: Project Foundation** - FastAPI app scaffold, config, project structure, Decomposer data connectivity
-- [ ] **Phase 2: Bundle Assembly & Narrative Engine** - Bundle Assembler reads BigQuery Gold + LangGraph narrative compiler with fact guardrails
-- [ ] **Phase 3: Renderers & Template Registry** - PPT renderer (python-pptx), HTML/PDF renderer (Jinja2 + WeasyPrint), multi-template support
-- [ ] **Phase 4: Chart Generation & POC Integration** - matplotlib chart generator consuming B1 wave_data, end-to-end POC validation
+- [x] **Phase 1: Project Foundation** - FastAPI app scaffold, config, project structure, Decomposer data connectivity
+- [x] **Phase 2: Bundle Assembly & Narrative Engine** - Bundle Assembler reads BigQuery Gold + LangGraph narrative compiler with fact guardrails
+- [x] **Phase 3: Renderers & Template Registry** - PPT renderer (python-pptx), HTML/PDF renderer (Jinja2 + WeasyPrint), multi-template support
+- [x] **Phase 4: Chart Generation & POC Integration** - matplotlib chart generator consuming B1 wave_data, end-to-end POC validation
 - [ ] **Phase 5: Job Queue & API** - Postgres-backed job queue, status tracking, retry logic, structured logging
 - [ ] **Phase 6: Decomposer Integration** - Webhook receiver, write-back to deliverable_bundles, API key auth
 - [ ] **Phase 7: Multi-Language & Template Expansion** - es-MX/ko-KR/zh-CN locale files, template upload API, template guardrails
@@ -171,10 +171,10 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (POC) → 5 → 6 → 7 →
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 1. Project Foundation | v0.1 POC | 0/TBD | Not started | - |
-| 2. Bundle Assembly & Narrative Engine | v0.1 POC | 0/TBD | Not started | - |
-| 3. Renderers & Template Registry | v0.1 POC | 0/TBD | Not started | - |
-| 4. Chart Generation & POC Integration | v0.1 POC | 0/TBD | Not started | - |
+| 1. Project Foundation | v0.1 POC | Complete | Done | 2026-04-26 |
+| 2. Bundle Assembly & Narrative Engine | v0.1 POC | Complete | Done | 2026-05-18 |
+| 3. Renderers & Template Registry | v0.1 POC | Complete | Done | 2026-05-18 |
+| 4. Chart Generation & POC Integration | v0.1 POC | Complete | Done | 2026-05-18 |
 | 5. Job Queue & API | v1.0 MVP | 0/TBD | Not started | - |
 | 6. Decomposer Integration | v1.0 MVP | 0/TBD | Not started | - |
 | 7. Multi-Language & Template Expansion | v1.0 MVP | 0/TBD | Not started | - |

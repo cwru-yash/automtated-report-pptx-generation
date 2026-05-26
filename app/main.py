@@ -98,6 +98,8 @@ def get_demo_dependencies():
     run_narrative_engine_async = getattr(app.state, "run_narrative_engine_async", None)
     render_ppt = getattr(app.state, "render_ppt", None)
     html_renderer = getattr(app.state, "html_renderer", None)
+    chart_generator = getattr(app.state, "chart_generator", None)
+    wave_provider = getattr(app.state, "wave_provider", None)
 
     if not all([BundleAssembler, run_narrative_engine_async, render_ppt, html_renderer]):
         from app.bundle.assembler import BundleAssembler
@@ -107,7 +109,19 @@ def get_demo_dependencies():
 
         html_renderer = HTMLRenderer(settings.TEMPLATES_DIR, settings.LOCALES_DIR)
 
-    return BundleAssembler, run_narrative_engine_async, render_ppt, html_renderer
+    if chart_generator is None:
+        from app.charts.generator import ChartGenerator
+
+        chart_generator = ChartGenerator()
+        app.state.chart_generator = chart_generator
+
+    if wave_provider is None:
+        from app.data.provider import get_provider
+
+        wave_provider = get_provider(settings)
+        app.state.wave_provider = wave_provider
+
+    return BundleAssembler, run_narrative_engine_async, render_ppt, html_renderer, chart_generator, wave_provider
 
 
 def prewarm_demo_dependencies(app: FastAPI) -> None:
@@ -121,11 +135,15 @@ def prewarm_demo_dependencies(app: FastAPI) -> None:
         from app.narrative.graph import run_narrative_engine_async
         from app.renderers.html import HTMLRenderer
         from app.renderers.ppt import render_ppt
+        from app.charts.generator import ChartGenerator
+        from app.data.provider import get_provider
 
         app.state.bundle_assembler_cls = BundleAssembler
         app.state.run_narrative_engine_async = run_narrative_engine_async
         app.state.render_ppt = render_ppt
         app.state.html_renderer = HTMLRenderer(settings.TEMPLATES_DIR, settings.LOCALES_DIR)
+        app.state.chart_generator = ChartGenerator()
+        app.state.wave_provider = get_provider(settings)
 
         bundle = AnalysisBundle(
             wave_id="startup-prewarm",
@@ -239,7 +257,7 @@ async def execute_report_job(
     batch_id: str | None = None,
 ) -> ReportJobResponse:
     ensure_template_registry_loaded()
-    BundleAssembler, run_narrative_engine_async, render_ppt, html_renderer = get_demo_dependencies()
+    BundleAssembler, run_narrative_engine_async, render_ppt, html_renderer, chart_generator, wave_provider = get_demo_dependencies()
 
     job_id = job_id or str(uuid4())
     output_dir = Path(request.output_dir)
@@ -262,11 +280,31 @@ async def execute_report_job(
     )
 
     try:
-        bundle = await BundleAssembler().build_bundle(request.wave_id, request.language)
+        wave_data = wave_provider.get_wave_data(request.wave_id)
+        event_log.emit(
+            "wave_data.loaded",
+            wave_id_in_payload=wave_data.get("wave", {}).get("id", ""),
+            analysis_count=len(wave_data.get("analyses", [])),
+        )
+        bundle = await BundleAssembler().build_bundle(
+            request.wave_id,
+            request.language,
+            wave_data=wave_data,
+        )
+        
+        # Inject provenance metadata
+        metadata = wave_data.get("metadata", {})
+        bundle.gold_activity_version_id = metadata.get("gold_activity_version_id", "")
+        bundle.analysis_run_id = metadata.get("analysis_run_id", "")
+
         event_log.emit(
             "bundle.assembled",
             metric_keys=sorted(bundle.metrics.keys()),
             analysis_keys=sorted(bundle.analysis_results.keys()),
+            provenance={
+                "gold_activity_version_id": bundle.gold_activity_version_id,
+                "analysis_run_id": bundle.analysis_run_id
+            }
         )
 
         narrative = await run_narrative_engine_async(
@@ -318,10 +356,27 @@ async def execute_report_job(
         artifacts["html"] = str(html_path)
         event_log.emit("artifact.written", artifact_type="html", path=str(html_path))
 
+        # Generate charts
+        charts = chart_generator.render_all(wave_data)
+        chart_paths = {}
+        for analysis_type, png_bytes in charts.items():
+            cpath = output_dir / f"{job_id}_chart_{analysis_type}.png"
+            cpath.write_bytes(png_bytes)
+            chart_paths[f"chart_{analysis_type}"] = str(cpath)
+        
+        if chart_paths:
+            event_log.emit("charts.rendered", count=len(chart_paths))
+
         if request.template_id:
             try:
                 ppt_path = output_dir / f"{job_id}.pptx"
-                render_ppt(bundle, ppt_sections or sections, request.template_id, str(ppt_path))
+                render_ppt(
+                    bundle,
+                    ppt_sections or sections,
+                    request.template_id,
+                    str(ppt_path),
+                    images=chart_paths,
+                )
                 artifacts["pptx"] = str(ppt_path)
                 event_log.emit("artifact.written", artifact_type="pptx", path=str(ppt_path))
             except Exception as exc:
@@ -397,6 +452,22 @@ async def create_report_job(request: ReportJobRequest):
     recording it proves the full Bundle -> Narrative -> HTML/PPT flow in one call.
     """
     return await execute_report_job(request)
+    
+@app.get("/api/v1/jobs/demo", response_model=ReportJobResponse)
+async def demo_job():
+    req = ReportJobRequest(
+        wave_id="DEMO_WAVE_001",
+        language="en-US",
+        template_id="demo_master"
+    )
+    return await execute_report_job(req)
+    
+@app.get("/api/v1/wave-data")
+def get_wave_data():
+    from app.data.provider import get_provider
+    provider = get_provider(settings)
+    wave_id = provider.get_latest_wave_id()
+    return provider.get_wave_data(wave_id)
 
 
 @app.post("/api/v1/batches", response_model=BatchReportJobResponse)
