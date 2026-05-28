@@ -14,6 +14,9 @@ venv/
 !app/static/*.html
 logs/
 artifacts/
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
 
 output/*.pptx
 output/*.pdf
@@ -22,3 +25,4 @@ output/*.png
 # Credentials and local databases
 gcp-key.json
 *.db
+ai-reference-projects/
