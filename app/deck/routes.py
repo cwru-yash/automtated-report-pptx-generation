@@ -67,6 +67,10 @@ class AIOutlineResponse(BaseModel):
     provider: str = "ai"
 
 
+class AcceptAIOutlineRequest(CreateDeckFromWaveRequest):
+    outline: DeckOutline
+
+
 def safe_artifact_stem(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]", "_", value)
 
@@ -144,6 +148,27 @@ async def create_ai_outline_from_wave(
     except AIOutlineError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return AIOutlineResponse(outline=outline)
+
+
+@router.post("/from-wave/outline/accept", response_model=DeckProjectResponse)
+async def accept_ai_outline_from_wave(
+    request: AcceptAIOutlineRequest,
+    x_deck_edit_token: str | None = Header(default=None),
+) -> DeckProjectResponse:
+    require_editor_token(x_deck_edit_token)
+    provider = get_provider(settings)
+    try:
+        result = await ReportDeckBuilder(provider=provider).build_from_accepted_outline(
+            wave_id=request.wave_id,
+            outline=request.outline,
+            language=request.language,
+            audience=request.audience,
+            tone=request.tone,
+            allow_partial=request.allow_partial,
+        )
+    except (DeckDataQualityError, DeckValidationError, AIOutlineError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return DeckProjectResponse(**deck_project_to_response(result.row))
 
 
 @router.post("/validate")

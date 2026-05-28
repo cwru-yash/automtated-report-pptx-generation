@@ -7,6 +7,7 @@ import { usePromptStore } from "../../stores/usePromptStore";
 import { DeckEditor } from "./DeckEditor";
 
 const apiMocks = vi.hoisted(() => ({
+  acceptAiDeckOutlineFromWave: vi.fn(),
   createDeckFromWave: vi.fn(),
   deckHtmlPreviewUrl: vi.fn(),
   deckPptxExportUrl: vi.fn(),
@@ -73,6 +74,11 @@ describe("DeckEditor autosave", () => {
     apiMocks.deckHtmlPreviewUrl.mockReturnValue("/api/v1/decks/deck_autosave/preview/html");
     apiMocks.deckPptxExportUrl.mockReturnValue("/api/v1/decks/deck_autosave/export/pptx");
     apiMocks.exportDeckPptx.mockResolvedValue(new Blob(["pptx"]));
+    apiMocks.acceptAiDeckOutlineFromWave.mockResolvedValue({
+      ...baseDeck,
+      deck_id: "deck_from_ai_outline",
+      title: "Deck From AI Outline",
+    });
     apiMocks.generateAiDeckOutlineFromWave.mockResolvedValue({
       deck_title: "AI Suggested Outline",
       audience: "executive stakeholders",
@@ -272,6 +278,81 @@ describe("DeckEditor autosave", () => {
     expect(screen.getByText("Priority finding")).toBeTruthy();
     expect(screen.getByText(/finding_1, chart_6/)).toBeTruthy();
     expect(screen.getByText(/Slides missing evidence refs/)).toBeTruthy();
+  });
+
+  it("keeps the AI outline accept button disabled before an outline exists", async () => {
+    apiMocks.fetchDemoDeck.mockResolvedValue({ ...baseDeck });
+
+    render(<DeckEditor />);
+
+    await waitFor(() => {
+      expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_autosave");
+    });
+
+    const acceptButton = screen.getByRole("button", { name: /create deck from ai outline/i }) as HTMLButtonElement;
+    expect(acceptButton.disabled).toBe(true);
+  });
+
+  it("creates a persisted editable deck from an accepted AI outline", async () => {
+    const createdDeck = {
+      ...baseDeck,
+      deck_id: "deck_accepted_ai_outline",
+      title: "Accepted Outline Deck",
+    };
+    apiMocks.fetchDemoDeck.mockResolvedValue({ ...baseDeck });
+    apiMocks.acceptAiDeckOutlineFromWave.mockResolvedValue(createdDeck);
+
+    render(<DeckEditor />);
+
+    await waitFor(() => {
+      expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_autosave");
+    });
+
+    fireEvent.change(screen.getByLabelText("Wave ID"), {
+      target: { value: "DEMO_WAVE_001" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /generate ai outline/i }));
+
+    await screen.findByText("AI Suggested Outline");
+    fireEvent.click(screen.getByRole("button", { name: /create deck from ai outline/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.acceptAiDeckOutlineFromWave).toHaveBeenCalledWith(
+        "DEMO_WAVE_001",
+        expect.objectContaining({ deck_title: "AI Suggested Outline" })
+      );
+    });
+    expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_accepted_ai_outline");
+    expect(window.location.pathname).toBe("/decks/editor/deck_accepted_ai_outline");
+    expect(screen.getByText("deck_accepted_ai_outline")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /open created deck/i }).getAttribute("href")).toBe(
+      "/decks/editor/deck_accepted_ai_outline"
+    );
+  });
+
+  it("shows backend validation error when accepted AI outline is rejected", async () => {
+    apiMocks.fetchDemoDeck.mockResolvedValue({ ...baseDeck });
+    apiMocks.acceptAiDeckOutlineFromWave.mockRejectedValue(
+      new Error("AI outline referenced evidence not present in findings context: not_in_context")
+    );
+
+    render(<DeckEditor />);
+
+    await waitFor(() => {
+      expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_autosave");
+    });
+
+    fireEvent.change(screen.getByLabelText("Wave ID"), {
+      target: { value: "DEMO_WAVE_001" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /generate ai outline/i }));
+
+    await screen.findByText("AI Suggested Outline");
+    fireEvent.click(screen.getByRole("button", { name: /create deck from ai outline/i }));
+
+    expect(await screen.findByText(/not_in_context/)).toBeTruthy();
+    const acceptButton = screen.getByRole("button", { name: /create deck from ai outline/i }) as HTMLButtonElement;
+    expect(acceptButton.disabled).toBe(false);
   });
 
   it("shows disabled-provider error from AI outline generation", async () => {

@@ -179,6 +179,95 @@ def test_ai_outline_invalid_evidence_ref_returns_422(monkeypatch):
     assert "not_in_context" in response.json()["detail"]
 
 
+def _valid_ai_outline_payload() -> dict:
+    return {
+        "deck_title": "Accepted AI Outline Deck",
+        "audience": "executive stakeholders",
+        "objective": "Convert the approved outline into an editable evidence-backed deck.",
+        "source_wave_id": "DEMO_WAVE_001",
+        "warnings": [],
+        "slides": [
+            {
+                "title": "Title",
+                "purpose": "Open the deck.",
+                "key_message": "The deck is based on validated wave evidence.",
+                "evidence_refs": [],
+                "suggested_visual_type": "title",
+            },
+            {
+                "title": "Priority finding",
+                "purpose": "Explain the highest-priority validated finding.",
+                "key_message": "The first validated finding should anchor the story.",
+                "evidence_refs": ["finding_1"],
+                "suggested_visual_type": "insight_slide",
+            },
+        ],
+    }
+
+
+def test_accept_ai_outline_creates_persisted_deck(monkeypatch):
+    monkeypatch.setattr(settings, "DECK_EDITOR_TOKEN", "")
+    monkeypatch.setattr(settings, "WAVE_DATA_PROVIDER", "mock")
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/decks/from-wave/outline/accept",
+            json={
+                "wave_id": "DEMO_WAVE_001",
+                "outline": _valid_ai_outline_payload(),
+            },
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        fetched = client.get(f"/api/v1/decks/{payload['id']}")
+
+    assert payload["deck_json"]["source_wave_id"] == "DEMO_WAVE_001"
+    assert payload["deck_json"]["title"] == "Accepted AI Outline Deck"
+    assert payload["deck_json"]["slides"]
+    assert payload["outline_json"]["source"] == "accepted_ai_outline"
+    assert fetched.status_code == 200
+    assert fetched.json()["deck_json"]["title"] == "Accepted AI Outline Deck"
+
+
+def test_accept_ai_outline_invalid_evidence_ref_returns_422(monkeypatch):
+    monkeypatch.setattr(settings, "DECK_EDITOR_TOKEN", "")
+    monkeypatch.setattr(settings, "WAVE_DATA_PROVIDER", "mock")
+    outline = _valid_ai_outline_payload()
+    outline["slides"][1]["evidence_refs"] = ["not_in_context"]
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/decks/from-wave/outline/accept",
+            json={
+                "wave_id": "DEMO_WAVE_001",
+                "outline": outline,
+            },
+        )
+
+    assert response.status_code == 422
+    assert "not_in_context" in response.json()["detail"]
+
+
+def test_accept_ai_outline_does_not_call_ai_provider(monkeypatch):
+    def fail_if_called():
+        raise AssertionError("accept endpoint must not call the AI outline provider")
+
+    monkeypatch.setattr(settings, "DECK_EDITOR_TOKEN", "")
+    monkeypatch.setattr(settings, "WAVE_DATA_PROVIDER", "mock")
+    monkeypatch.setattr(deck_routes, "get_ai_outline_provider", fail_if_called)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/decks/from-wave/outline/accept",
+            json={
+                "wave_id": "DEMO_WAVE_001",
+                "outline": _valid_ai_outline_payload(),
+            },
+        )
+
+    assert response.status_code == 200
+
+
 def test_updated_deck_document_is_saved_and_reloaded(monkeypatch):
     monkeypatch.setattr(settings, "DECK_EDITOR_TOKEN", "")
     monkeypatch.setattr(settings, "WAVE_DATA_PROVIDER", "mock")

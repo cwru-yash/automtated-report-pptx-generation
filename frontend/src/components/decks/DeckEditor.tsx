@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  acceptAiDeckOutlineFromWave,
   createDeckFromWave,
   deckHtmlPreviewUrl,
   exportDeckPptx,
@@ -21,6 +22,7 @@ import { ThemePanel } from "./panels/ThemePanel";
 const AUTOSAVE_DELAY_MS = 1800;
 type ExportStatus = "idle" | "loading" | "error";
 type OutlineStatus = "idle" | "loading" | "ready" | "error";
+type OutlineAcceptStatus = "idle" | "loading" | "error";
 
 function editMarker(deck: DeckDocument) {
   return typeof deck.metadata.edited_at === "string" ? deck.metadata.edited_at : "";
@@ -34,6 +36,8 @@ export function DeckEditor() {
   const [outlineStatus, setOutlineStatus] = useState<OutlineStatus>("idle");
   const [outlineError, setOutlineError] = useState("");
   const [aiOutline, setAiOutline] = useState<DeckOutline | null>(null);
+  const [outlineAcceptStatus, setOutlineAcceptStatus] = useState<OutlineAcceptStatus>("idle");
+  const [outlineAcceptError, setOutlineAcceptError] = useState("");
   const deck = useDeckStore((state) => state.currentDeck);
   const selectedSlideId = useDeckStore((state) => state.selectedSlideId);
   const saveState = useDeckStore((state) => state.saveState);
@@ -129,10 +133,41 @@ export function DeckEditor() {
       const outline = await generateAiDeckOutlineFromWave(reportSourceId.trim());
       setAiOutline(outline);
       setOutlineStatus("ready");
+      setOutlineAcceptError("");
+      setOutlineAcceptStatus("idle");
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI outline generation failed";
       setOutlineStatus("error");
       setOutlineError(message);
+    }
+  }
+
+  async function handleAcceptAiOutline() {
+    if (!aiOutline) {
+      setOutlineAcceptStatus("error");
+      setOutlineAcceptError("Generate and review an AI outline before creating a deck.");
+      return;
+    }
+    if (!reportSourceId.trim()) {
+      setOutlineAcceptStatus("error");
+      setOutlineAcceptError("Enter a wave ID before creating a deck from an AI outline.");
+      return;
+    }
+    setCreatedDeckLink(null);
+    setOutlineAcceptStatus("loading");
+    setOutlineAcceptError("");
+    try {
+      const createdDeck = await acceptAiDeckOutlineFromWave(reportSourceId.trim(), aiOutline);
+      setDeck(createdDeck);
+      setReady();
+      const url = `/decks/editor/${createdDeck.deck_id}`;
+      setCreatedDeckLink({ deckId: createdDeck.deck_id, url });
+      setOutlineAcceptStatus("idle");
+      window.history.replaceState(null, "", url);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "AI outline acceptance failed";
+      setOutlineAcceptStatus("error");
+      setOutlineAcceptError(message);
     }
   }
 
@@ -191,6 +226,11 @@ export function DeckEditor() {
           <button type="button" onClick={handleGenerateAiOutline} disabled={outlineStatus === "loading"}>
             {outlineStatus === "loading" ? "Generating Outline..." : "Generate AI Outline"}
           </button>
+          {!aiOutline ? (
+            <button type="button" disabled>
+              Create Deck from AI Outline
+            </button>
+          ) : null}
           <button type="button" onClick={handleExportPptx} disabled={!deck || exportStatus === "loading"}>
             {exportStatus === "loading" ? "Exporting..." : "Export PPT"}
           </button>
@@ -217,7 +257,16 @@ export function DeckEditor() {
       ) : null}
       {exportStatus === "error" ? <div className="error-banner">PPT export failed: {exportError}</div> : null}
       {outlineStatus === "error" ? <div className="error-banner">AI outline failed: {outlineError}</div> : null}
-      {aiOutline ? <AIOutlinePreview outline={aiOutline} /> : null}
+      {outlineAcceptStatus === "error" ? (
+        <div className="error-banner">AI outline acceptance failed: {outlineAcceptError}</div>
+      ) : null}
+      {aiOutline ? (
+        <AIOutlinePreview
+          outline={aiOutline}
+          onAccept={handleAcceptAiOutline}
+          acceptStatus={outlineAcceptStatus}
+        />
+      ) : null}
 
       {deck ? (
         <div className="editor-grid">
@@ -232,7 +281,15 @@ export function DeckEditor() {
   );
 }
 
-function AIOutlinePreview({ outline }: { outline: DeckOutline }) {
+function AIOutlinePreview({
+  outline,
+  onAccept,
+  acceptStatus,
+}: {
+  outline: DeckOutline;
+  onAccept: () => void;
+  acceptStatus: OutlineAcceptStatus;
+}) {
   return (
     <section className="ai-outline-preview" aria-label="AI outline preview">
       <div className="outline-head">
@@ -240,7 +297,12 @@ function AIOutlinePreview({ outline }: { outline: DeckOutline }) {
           <p className="eyebrow">AI Outline Preview</p>
           <h2>{outline.deck_title}</h2>
         </div>
-        <span>{outline.slides.length} slides</span>
+        <div className="outline-actions">
+          <span>{outline.slides.length} slides</span>
+          <button type="button" onClick={onAccept} disabled={acceptStatus === "loading"}>
+            {acceptStatus === "loading" ? "Creating Deck..." : "Create Deck from AI Outline"}
+          </button>
+        </div>
       </div>
       <dl className="outline-meta">
         <div>

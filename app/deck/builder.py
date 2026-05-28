@@ -6,10 +6,12 @@ from typing import Any
 from app.bundle.assembler import BundleAssembler
 from app.bundle.schema import AnalysisBundle
 from app.data.provider import WaveDataProvider
+from app.deck.ai_outline import DeckOutline
 from app.deck.extractor import FindingExtractor
 from app.deck.layout_mapper import DeckLayoutMapper
 from app.deck.layout_schema import DeckDocument
 from app.deck.models import DeckProject
+from app.deck.outline_acceptance import accepted_outline_to_deck_plan
 from app.deck.planner import SlidePlanner
 from app.deck.repository import DeckRepository
 from app.deck.schema import DeckPlan, FindingsContext
@@ -83,6 +85,54 @@ class ReportDeckBuilder:
         row = await self.repository.create(
             deck_document,
             outline_json=deck_plan.model_dump(mode="json"),
+        )
+
+        return ReportDeckBuildResult(
+            row=row,
+            bundle=bundle,
+            findings_context=findings_context,
+            deck_plan=deck_plan,
+            deck_document=deck_document,
+        )
+
+    async def build_from_accepted_outline(
+        self,
+        *,
+        wave_id: str,
+        outline: DeckOutline,
+        language: str = "en-US",
+        audience: str = "executive stakeholders",
+        tone: str = "consulting",
+        allow_partial: bool = False,
+    ) -> ReportDeckBuildResult:
+        wave_data = self.provider.get_wave_data(wave_id)
+        bundle = await self.bundle_assembler.build_bundle(
+            wave_id,
+            language,
+            wave_data=wave_data,
+        )
+        self._attach_provenance(bundle, wave_data)
+
+        findings_context = self.finding_extractor.extract(
+            bundle,
+            wave_data,
+            allow_partial=allow_partial,
+        )
+        deck_plan = accepted_outline_to_deck_plan(
+            outline,
+            findings_context,
+            bundle,
+            audience=audience,
+            tone=tone,
+        )
+        deck_document = self.layout_mapper.from_deck_plan(deck_plan)
+        row = await self.repository.create(
+            deck_document,
+            outline_json={
+                "source": "accepted_ai_outline",
+                "outline": outline.model_dump(mode="json"),
+                "deck_plan": deck_plan.model_dump(mode="json"),
+            },
         )
 
         return ReportDeckBuildResult(

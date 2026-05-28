@@ -140,6 +140,12 @@ async def generate_ai_outline(
     except Exception as exc:
         raise AIOutlineError(f"AI outline generation failed: {exc}") from exc
 
+    validate_outline_evidence(outline, context)
+    return outline
+
+
+def validate_outline_evidence(outline: DeckOutline, context: FindingsContext) -> DeckOutline:
+    """Re-check outline evidence refs against the extracted findings context."""
     _validate_outline_evidence(outline, context)
     return outline
 

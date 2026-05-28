@@ -82,6 +82,23 @@ export async function generateAiDeckOutlineFromWave(waveId: string): Promise<Dec
   return aiOutlineResponseSchema.parse(data).outline;
 }
 
+export async function acceptAiDeckOutlineFromWave(
+  waveId: string,
+  outline: DeckOutline
+): Promise<DeckDocument> {
+  const data = await readJson<DeckProjectResponse>(
+    await fetch("/api/v1/decks/from-wave/outline/accept", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...editorTokenHeader(),
+      },
+      body: JSON.stringify({ wave_id: waveId, outline }),
+    })
+  );
+  return deckDocumentSchema.parse(data.deck_json);
+}
+
 export async function saveDeck(deck: DeckDocument): Promise<DeckDocument> {
   const data = await readJson<DeckProjectResponse>(
     await fetch(`/api/v1/decks/${deck.deck_id}`, {

@@ -169,6 +169,27 @@ button {
   font-weight: 800;
 }
 
+.outline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 8px;
+}
+
+.outline-actions button {
+  border: 0;
+  border-radius: 6px;
+  padding: 9px 12px;
+  background: #17324d;
+  color: #fff;
+  font-weight: 800;
+}
+
+.outline-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .outline-meta {
   display: grid;
   grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
