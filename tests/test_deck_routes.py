@@ -1,5 +1,7 @@
+import json
 import os
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,6 +12,9 @@ from app.config import settings
 from app.data.mock_provider import MOCK_WAVE_DATA
 from app.main import app
 import app.deck.routes as deck_routes
+
+
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "canonical_deck_document.json"
 
 
 def test_validate_deck_accepts_demo_deck():
@@ -108,6 +113,51 @@ def test_created_deck_can_export_pptx(monkeypatch):
     assert exported.status_code == 200
     assert exported.content.startswith(b"PK")
     assert "presentation" in exported.headers["content-type"]
+
+
+def test_persisted_deck_can_preview_semantic_html(monkeypatch):
+    monkeypatch.setattr(settings, "DECK_EDITOR_TOKEN", "")
+    monkeypatch.setattr(settings, "WAVE_DATA_PROVIDER", "mock")
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/decks/from-wave",
+            json={"wave_id": "DEMO_WAVE_001"},
+        )
+        assert created.status_code == 200
+        deck_id = created.json()["id"]
+
+        deck = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+        deck["deck_id"] = deck_id
+        deck["slides"][0]["content"][1]["text"] = "Escaped <script>alert(1)</script>"
+        saved = client.put(f"/api/v1/decks/{deck_id}", json={"deck": deck})
+        assert saved.status_code == 200
+
+        preview = client.get(f"/api/v1/decks/{deck_id}/preview/html")
+
+    assert preview.status_code == 200
+    assert "text/html" in preview.headers["content-type"]
+    html = preview.text
+    assert "Canonical Evidence Deck" in html
+    assert "Evidence score" in html
+    assert "56.25" in html
+    assert "<th>Activity</th>" in html
+    assert "<td>US10</td>" in html
+    assert "Chart placeholder:" in html
+    assert "chart_6" in html
+    assert "Callout:" in html
+    assert "Any new numeric claim must be present in the evidence registry." in html
+    assert "Source Note:" in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "<script>alert(1)</script>" not in html
+
+
+def test_missing_deck_html_preview_returns_404():
+    with TestClient(app) as client:
+        response = client.get("/api/v1/decks/missing_deck_for_html_preview/preview/html")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Deck not found"
 
 
 def test_invalid_deck_update_is_rejected_visibly(monkeypatch):

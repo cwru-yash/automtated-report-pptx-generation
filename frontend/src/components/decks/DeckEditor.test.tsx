@@ -8,6 +8,7 @@ import { DeckEditor } from "./DeckEditor";
 
 const apiMocks = vi.hoisted(() => ({
   createDeckFromWave: vi.fn(),
+  deckHtmlPreviewUrl: vi.fn(),
   deckPptxExportUrl: vi.fn(),
   exportDeckPptx: vi.fn(),
   fetchDeck: vi.fn(),
@@ -68,6 +69,7 @@ describe("DeckEditor autosave", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.history.replaceState(null, "", "/decks/editor");
+    apiMocks.deckHtmlPreviewUrl.mockReturnValue("/api/v1/decks/deck_autosave/preview/html");
     apiMocks.deckPptxExportUrl.mockReturnValue("/api/v1/decks/deck_autosave/export/pptx");
     apiMocks.exportDeckPptx.mockResolvedValue(new Blob(["pptx"]));
     useDeckStore.setState({

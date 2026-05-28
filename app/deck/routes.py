@@ -6,12 +6,13 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field, ValidationError
 
 from app.config import settings
 from app.data.provider import get_provider
 from app.deck.builder import ReportDeckBuilder
+from app.deck.html_preview import render_deck_document_html
 from app.deck.layout_mapper import DeckLayoutMapper
 from app.deck.layout_schema import DeckDocument
 from app.deck.repository import DeckRepository, deck_project_to_response
@@ -144,6 +145,20 @@ async def export_deck_pptx(
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         filename=f"{safe_artifact_stem(deck_id)}.pptx",
     )
+
+
+@router.get("/{deck_id}/preview/html", response_class=HTMLResponse)
+async def preview_deck_html(deck_id: str) -> HTMLResponse:
+    row = await DeckRepository().get(deck_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Deck not found")
+
+    try:
+        deck = DeckDocument.model_validate(row.deck_json)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+    return HTMLResponse(render_deck_document_html(deck))
 
 
 @router.get("/{deck_id}", response_model=DeckProjectResponse)

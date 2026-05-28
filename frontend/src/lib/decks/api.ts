@@ -81,6 +81,10 @@ export function deckPptxExportUrl(deckId: string, templateId = "client_cvc_maste
   return `/api/v1/decks/${encodeURIComponent(deckId)}/export/pptx?${params.toString()}`;
 }
 
+export function deckHtmlPreviewUrl(deckId: string): string {
+  return `/api/v1/decks/${encodeURIComponent(deckId)}/preview/html`;
+}
+
 export async function exportDeckPptx(deckId: string, templateId = "client_cvc_master"): Promise<Blob> {
   const response = await fetch(deckPptxExportUrl(deckId, templateId));
   if (!response.ok) {

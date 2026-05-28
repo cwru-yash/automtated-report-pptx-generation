@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createDeckFromWave, exportDeckPptx, fetchDeck, fetchDemoDeck, saveDeck } from "../../lib/decks/api";
+import { createDeckFromWave, deckHtmlPreviewUrl, exportDeckPptx, fetchDeck, fetchDemoDeck, saveDeck } from "../../lib/decks/api";
 import { createDebouncedAction } from "../../lib/decks/debounce";
 import type { DeckDocument } from "../../lib/decks/deck-schema";
 import { useDeckStore } from "../../stores/useDeckStore";
@@ -128,6 +128,13 @@ export function DeckEditor() {
     }
   }
 
+  function handleOpenHtmlPreview() {
+    if (!deck) {
+      return;
+    }
+    window.open(deckHtmlPreviewUrl(deck.deck_id), "_blank", "noopener,noreferrer");
+  }
+
   if (previewOpen && deck) {
     return <PresentationMode deck={deck} onClose={() => setPreviewOpen(false)} />;
   }
@@ -151,6 +158,9 @@ export function DeckEditor() {
           </button>
           <button type="button" onClick={handleExportPptx} disabled={!deck || exportStatus === "loading"}>
             {exportStatus === "loading" ? "Exporting..." : "Export PPT"}
+          </button>
+          <button type="button" onClick={handleOpenHtmlPreview} disabled={!deck}>
+            HTML Preview
           </button>
           <button type="button" onClick={() => setPreviewOpen(true)} disabled={!deck}>
             Preview
