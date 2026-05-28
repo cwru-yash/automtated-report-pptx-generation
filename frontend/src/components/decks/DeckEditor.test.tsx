@@ -13,6 +13,7 @@ const apiMocks = vi.hoisted(() => ({
   exportDeckPptx: vi.fn(),
   fetchDeck: vi.fn(),
   fetchDemoDeck: vi.fn(),
+  generateAiDeckOutlineFromWave: vi.fn(),
   saveDeck: vi.fn(),
 }));
 
@@ -72,6 +73,29 @@ describe("DeckEditor autosave", () => {
     apiMocks.deckHtmlPreviewUrl.mockReturnValue("/api/v1/decks/deck_autosave/preview/html");
     apiMocks.deckPptxExportUrl.mockReturnValue("/api/v1/decks/deck_autosave/export/pptx");
     apiMocks.exportDeckPptx.mockResolvedValue(new Blob(["pptx"]));
+    apiMocks.generateAiDeckOutlineFromWave.mockResolvedValue({
+      deck_title: "AI Suggested Outline",
+      audience: "executive stakeholders",
+      objective: "Preview an AI outline only.",
+      source_wave_id: "DEMO_WAVE_001",
+      warnings: ["Slides missing evidence refs: Market context"],
+      slides: [
+        {
+          title: "Executive setup",
+          purpose: "Open the story.",
+          key_message: "The wave has enough evidence for an outline.",
+          evidence_refs: ["finding_1"],
+          suggested_visual_type: "executive_summary",
+        },
+        {
+          title: "Priority finding",
+          purpose: "Show the most important signal.",
+          key_message: "The first finding anchors the deck.",
+          evidence_refs: ["finding_1", "chart_6"],
+          suggested_visual_type: "insight_slide",
+        },
+      ],
+    });
     useDeckStore.setState({
       currentDeck: null,
       selectedSlideId: null,
@@ -223,5 +247,70 @@ describe("DeckEditor autosave", () => {
     expect(await screen.findByText(/PPT export failed: Template not found/)).toBeTruthy();
     const exportButton = screen.getByRole("button", { name: /export ppt/i }) as HTMLButtonElement;
     expect(exportButton.disabled).toBe(false);
+  });
+
+  it("renders AI outline cards returned for a wave", async () => {
+    apiMocks.fetchDemoDeck.mockResolvedValue({ ...baseDeck });
+
+    render(<DeckEditor />);
+
+    await waitFor(() => {
+      expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_autosave");
+    });
+
+    fireEvent.change(screen.getByLabelText("Wave ID"), {
+      target: { value: "DEMO_WAVE_001" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /generate ai outline/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.generateAiDeckOutlineFromWave).toHaveBeenCalledWith("DEMO_WAVE_001");
+    });
+    expect(await screen.findByText("AI Suggested Outline")).toBeTruthy();
+    expect(screen.getByText("Preview an AI outline only.")).toBeTruthy();
+    expect(screen.getByText("Executive setup")).toBeTruthy();
+    expect(screen.getByText("Priority finding")).toBeTruthy();
+    expect(screen.getByText(/finding_1, chart_6/)).toBeTruthy();
+    expect(screen.getByText(/Slides missing evidence refs/)).toBeTruthy();
+  });
+
+  it("shows disabled-provider error from AI outline generation", async () => {
+    apiMocks.fetchDemoDeck.mockResolvedValue({ ...baseDeck });
+    apiMocks.generateAiDeckOutlineFromWave.mockRejectedValue(
+      new Error("AI outline provider is not configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY to enable it.")
+    );
+
+    render(<DeckEditor />);
+
+    await waitFor(() => {
+      expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_autosave");
+    });
+
+    fireEvent.change(screen.getByLabelText("Wave ID"), {
+      target: { value: "DEMO_WAVE_001" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /generate ai outline/i }));
+
+    expect(await screen.findByText(/AI outline provider is not configured/)).toBeTruthy();
+  });
+
+  it("shows backend validation error from AI outline generation", async () => {
+    apiMocks.fetchDemoDeck.mockResolvedValue({ ...baseDeck });
+    apiMocks.generateAiDeckOutlineFromWave.mockRejectedValue(
+      new Error("AI outline output failed schema validation")
+    );
+
+    render(<DeckEditor />);
+
+    await waitFor(() => {
+      expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_autosave");
+    });
+
+    fireEvent.change(screen.getByLabelText("Wave ID"), {
+      target: { value: "DEMO_WAVE_001" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /generate ai outline/i }));
+
+    expect(await screen.findByText(/AI outline output failed schema validation/)).toBeTruthy();
   });
 });

@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { createDeckFromWave, deckHtmlPreviewUrl, exportDeckPptx, fetchDeck, fetchDemoDeck, saveDeck } from "../../lib/decks/api";
+import {
+  createDeckFromWave,
+  deckHtmlPreviewUrl,
+  exportDeckPptx,
+  fetchDeck,
+  fetchDemoDeck,
+  generateAiDeckOutlineFromWave,
+  saveDeck,
+} from "../../lib/decks/api";
 import { createDebouncedAction } from "../../lib/decks/debounce";
-import type { DeckDocument } from "../../lib/decks/deck-schema";
+import type { DeckDocument, DeckOutline } from "../../lib/decks/deck-schema";
 import { useDeckStore } from "../../stores/useDeckStore";
 import { useGenerationStore } from "../../stores/useGenerationStore";
 import { usePromptStore } from "../../stores/usePromptStore";
@@ -12,6 +20,7 @@ import { ThemePanel } from "./panels/ThemePanel";
 
 const AUTOSAVE_DELAY_MS = 1800;
 type ExportStatus = "idle" | "loading" | "error";
+type OutlineStatus = "idle" | "loading" | "ready" | "error";
 
 function editMarker(deck: DeckDocument) {
   return typeof deck.metadata.edited_at === "string" ? deck.metadata.edited_at : "";
@@ -22,6 +31,9 @@ export function DeckEditor() {
   const [createdDeckLink, setCreatedDeckLink] = useState<{ deckId: string; url: string } | null>(null);
   const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
   const [exportError, setExportError] = useState("");
+  const [outlineStatus, setOutlineStatus] = useState<OutlineStatus>("idle");
+  const [outlineError, setOutlineError] = useState("");
+  const [aiOutline, setAiOutline] = useState<DeckOutline | null>(null);
   const deck = useDeckStore((state) => state.currentDeck);
   const selectedSlideId = useDeckStore((state) => state.selectedSlideId);
   const saveState = useDeckStore((state) => state.saveState);
@@ -104,6 +116,26 @@ export function DeckEditor() {
     }
   }
 
+  async function handleGenerateAiOutline() {
+    if (!reportSourceId.trim()) {
+      setOutlineStatus("error");
+      setOutlineError("Enter a wave ID before generating an AI outline.");
+      return;
+    }
+    setOutlineStatus("loading");
+    setOutlineError("");
+    setAiOutline(null);
+    try {
+      const outline = await generateAiDeckOutlineFromWave(reportSourceId.trim());
+      setAiOutline(outline);
+      setOutlineStatus("ready");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "AI outline generation failed";
+      setOutlineStatus("error");
+      setOutlineError(message);
+    }
+  }
+
   async function handleExportPptx() {
     if (!deck) {
       return;
@@ -156,6 +188,9 @@ export function DeckEditor() {
           <button type="button" onClick={handleCreateFromWave} disabled={generationStatus === "loading"}>
             Create Editable Deck
           </button>
+          <button type="button" onClick={handleGenerateAiOutline} disabled={outlineStatus === "loading"}>
+            {outlineStatus === "loading" ? "Generating Outline..." : "Generate AI Outline"}
+          </button>
           <button type="button" onClick={handleExportPptx} disabled={!deck || exportStatus === "loading"}>
             {exportStatus === "loading" ? "Exporting..." : "Export PPT"}
           </button>
@@ -181,6 +216,8 @@ export function DeckEditor() {
         </div>
       ) : null}
       {exportStatus === "error" ? <div className="error-banner">PPT export failed: {exportError}</div> : null}
+      {outlineStatus === "error" ? <div className="error-banner">AI outline failed: {outlineError}</div> : null}
+      {aiOutline ? <AIOutlinePreview outline={aiOutline} /> : null}
 
       {deck ? (
         <div className="editor-grid">
@@ -192,5 +229,51 @@ export function DeckEditor() {
         <div className="loading-panel">Preparing editor...</div>
       )}
     </div>
+  );
+}
+
+function AIOutlinePreview({ outline }: { outline: DeckOutline }) {
+  return (
+    <section className="ai-outline-preview" aria-label="AI outline preview">
+      <div className="outline-head">
+        <div>
+          <p className="eyebrow">AI Outline Preview</p>
+          <h2>{outline.deck_title}</h2>
+        </div>
+        <span>{outline.slides.length} slides</span>
+      </div>
+      <dl className="outline-meta">
+        <div>
+          <dt>Audience</dt>
+          <dd>{outline.audience}</dd>
+        </div>
+        <div>
+          <dt>Objective</dt>
+          <dd>{outline.objective}</dd>
+        </div>
+      </dl>
+      {outline.warnings.length ? (
+        <div className="outline-warnings">
+          <strong>Warnings</strong>
+          <ul>
+            {outline.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <div className="outline-slide-grid">
+        {outline.slides.map((slide, index) => (
+          <article className="outline-slide-card" key={`${slide.title}-${index}`}>
+            <span>Slide {index + 1}</span>
+            <h3>{slide.title}</h3>
+            <p><strong>Purpose:</strong> {slide.purpose}</p>
+            <p><strong>Message:</strong> {slide.key_message}</p>
+            <p><strong>Visual:</strong> {slide.suggested_visual_type}</p>
+            <p><strong>Evidence:</strong> {slide.evidence_refs.length ? slide.evidence_refs.join(", ") : "None"}</p>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }

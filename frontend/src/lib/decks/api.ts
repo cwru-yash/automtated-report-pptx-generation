@@ -1,4 +1,10 @@
-import { deckDocumentSchema, type DeckDocument, type DeckProjectResponse } from "./deck-schema";
+import {
+  aiOutlineResponseSchema,
+  deckDocumentSchema,
+  type DeckDocument,
+  type DeckOutline,
+  type DeckProjectResponse,
+} from "./deck-schema";
 
 async function readErrorMessage(response: Response): Promise<string> {
   const text = await response.text();
@@ -60,6 +66,20 @@ export async function createDeckFromWave(waveId: string): Promise<DeckDocument> 
     })
   );
   return deckDocumentSchema.parse(data.deck_json);
+}
+
+export async function generateAiDeckOutlineFromWave(waveId: string): Promise<DeckOutline> {
+  const data = await readJson<unknown>(
+    await fetch("/api/v1/decks/from-wave/outline/ai", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...editorTokenHeader(),
+      },
+      body: JSON.stringify({ wave_id: waveId }),
+    })
+  );
+  return aiOutlineResponseSchema.parse(data).outline;
 }
 
 export async function saveDeck(deck: DeckDocument): Promise<DeckDocument> {

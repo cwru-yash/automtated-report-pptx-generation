@@ -78,6 +78,41 @@ export type DeckDocument = {
   metadata: Record<string, unknown>;
 };
 
+export type SuggestedVisualType =
+  | "title"
+  | "executive_summary"
+  | "section_divider"
+  | "line_chart"
+  | "bar_chart"
+  | "stacked_bar"
+  | "table"
+  | "metric_cards"
+  | "comparison_matrix"
+  | "journey_map"
+  | "quadrant"
+  | "waterfall"
+  | "quote_callout"
+  | "insight_slide"
+  | "recommendation_slide"
+  | "appendix";
+
+export type DeckOutlineSlide = {
+  title: string;
+  purpose: string;
+  key_message: string;
+  evidence_refs: string[];
+  suggested_visual_type: SuggestedVisualType;
+};
+
+export type DeckOutline = {
+  deck_title: string;
+  audience: string;
+  objective: string;
+  source_wave_id: string;
+  slides: DeckOutlineSlide[];
+  warnings: string[];
+};
+
 const metadataSchema = z.record(z.string(), z.unknown()).optional();
 
 export const deckThemeSchema = z.object({
@@ -143,6 +178,42 @@ export const deckDocumentSchema: z.ZodType<DeckDocument> = z.object({
   metadata: z.record(z.string(), z.unknown()),
 });
 
+export const suggestedVisualTypeSchema = z.union([
+  z.literal("title"),
+  z.literal("executive_summary"),
+  z.literal("section_divider"),
+  z.literal("line_chart"),
+  z.literal("bar_chart"),
+  z.literal("stacked_bar"),
+  z.literal("table"),
+  z.literal("metric_cards"),
+  z.literal("comparison_matrix"),
+  z.literal("journey_map"),
+  z.literal("quadrant"),
+  z.literal("waterfall"),
+  z.literal("quote_callout"),
+  z.literal("insight_slide"),
+  z.literal("recommendation_slide"),
+  z.literal("appendix"),
+]);
+
+export const deckOutlineSlideSchema: z.ZodType<DeckOutlineSlide> = z.object({
+  title: z.string(),
+  purpose: z.string(),
+  key_message: z.string(),
+  evidence_refs: z.array(z.string()),
+  suggested_visual_type: suggestedVisualTypeSchema,
+});
+
+export const deckOutlineSchema: z.ZodType<DeckOutline> = z.object({
+  deck_title: z.string(),
+  audience: z.string(),
+  objective: z.string(),
+  source_wave_id: z.string(),
+  slides: z.array(deckOutlineSlideSchema).min(1),
+  warnings: z.array(z.string()),
+});
+
 export type DeckProjectResponse = {
   id: string;
   source_wave_id: string;
@@ -154,3 +225,13 @@ export type DeckProjectResponse = {
   created_at: string;
   updated_at: string;
 };
+
+export type AIOutlineResponse = {
+  outline: DeckOutline;
+  provider: string;
+};
+
+export const aiOutlineResponseSchema: z.ZodType<AIOutlineResponse> = z.object({
+  outline: deckOutlineSchema,
+  provider: z.string(),
+});
