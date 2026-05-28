@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 os.environ.setdefault("WAVE_DATA_PROVIDER", "mock")
 
 from app.config import settings
+from app.deck.ai_outline import DisabledAIOutlineProvider
 from app.data.mock_provider import MOCK_WAVE_DATA
 from app.main import app
 import app.deck.routes as deck_routes
@@ -61,6 +62,121 @@ def test_from_wave_creates_persisted_deck(monkeypatch):
     with TestClient(app) as client:
         fetched = client.get(f"/api/v1/decks/{payload['id']}")
     assert fetched.status_code == 200
+
+
+def test_ai_outline_from_wave_returns_validated_outline(monkeypatch):
+    class ValidOutlineProvider:
+        async def generate_outline(self, payload: dict) -> dict:
+            return {
+                "deck_title": "AI Suggested Evidence Outline",
+                "audience": payload["audience"],
+                "objective": "Turn validated findings into an executive outline.",
+                "source_wave_id": payload["wave_id"],
+                "slides": [
+                    {
+                        "title": "Title",
+                        "purpose": "Open the deck.",
+                        "key_message": "The deck is based on validated wave evidence.",
+                        "evidence_refs": [],
+                        "suggested_visual_type": "title",
+                    },
+                    {
+                        "title": "Finding priority",
+                        "purpose": "Focus the audience on the first evidence-backed finding.",
+                        "key_message": "The first validated finding should anchor the story.",
+                        "evidence_refs": ["finding_1"],
+                        "suggested_visual_type": "insight_slide",
+                    },
+                ],
+            }
+
+    monkeypatch.setattr(settings, "DECK_EDITOR_TOKEN", "")
+    monkeypatch.setattr(settings, "WAVE_DATA_PROVIDER", "mock")
+    monkeypatch.setattr(deck_routes, "get_ai_outline_provider", lambda: ValidOutlineProvider())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/decks/from-wave/outline/ai",
+            json={"wave_id": "DEMO_WAVE_001"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "ai"
+    assert payload["outline"]["deck_title"] == "AI Suggested Evidence Outline"
+    assert payload["outline"]["source_wave_id"] == "DEMO_WAVE_001"
+    assert payload["outline"]["slides"][1]["evidence_refs"] == ["finding_1"]
+
+
+def test_ai_outline_malformed_provider_output_returns_422(monkeypatch):
+    class MalformedOutlineProvider:
+        async def generate_outline(self, payload: dict) -> dict:
+            return {
+                "deck_title": "Missing required fields",
+                "source_wave_id": payload["wave_id"],
+                "slides": [],
+            }
+
+    monkeypatch.setattr(settings, "DECK_EDITOR_TOKEN", "")
+    monkeypatch.setattr(settings, "WAVE_DATA_PROVIDER", "mock")
+    monkeypatch.setattr(deck_routes, "get_ai_outline_provider", lambda: MalformedOutlineProvider())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/decks/from-wave/outline/ai",
+            json={"wave_id": "DEMO_WAVE_001"},
+        )
+
+    assert response.status_code == 422
+    assert "schema validation" in response.json()["detail"]
+
+
+def test_ai_outline_disabled_provider_returns_503(monkeypatch):
+    monkeypatch.setattr(settings, "DECK_EDITOR_TOKEN", "")
+    monkeypatch.setattr(settings, "WAVE_DATA_PROVIDER", "mock")
+    monkeypatch.setattr(deck_routes, "get_ai_outline_provider", lambda: DisabledAIOutlineProvider())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/decks/from-wave/outline/ai",
+            json={"wave_id": "DEMO_WAVE_001"},
+        )
+
+    assert response.status_code == 503
+    assert "AI outline provider is not configured" in response.json()["detail"]
+
+
+def test_ai_outline_invalid_evidence_ref_returns_422(monkeypatch):
+    class InvalidEvidenceProvider:
+        async def generate_outline(self, payload: dict) -> dict:
+            return {
+                "deck_title": "Unsupported Evidence Outline",
+                "audience": payload["audience"],
+                "objective": "Use only valid evidence refs.",
+                "source_wave_id": payload["wave_id"],
+                "slides": [
+                    {
+                        "title": "Unsupported claim",
+                        "purpose": "Exercise evidence validation.",
+                        "key_message": "This slide references evidence outside the context.",
+                        "evidence_refs": ["not_in_context"],
+                        "suggested_visual_type": "insight_slide",
+                    }
+                ],
+            }
+
+    monkeypatch.setattr(settings, "DECK_EDITOR_TOKEN", "")
+    monkeypatch.setattr(settings, "WAVE_DATA_PROVIDER", "mock")
+    monkeypatch.setattr(deck_routes, "get_ai_outline_provider", lambda: InvalidEvidenceProvider())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/decks/from-wave/outline/ai",
+            json={"wave_id": "DEMO_WAVE_001"},
+        )
+
+    assert response.status_code == 422
+    assert "not_in_context" in response.json()["detail"]
 
 
 def test_updated_deck_document_is_saved_and_reloaded(monkeypatch):

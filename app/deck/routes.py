@@ -9,9 +9,18 @@ from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field, ValidationError
 
+from app.bundle.assembler import BundleAssembler
 from app.config import settings
 from app.data.provider import get_provider
+from app.deck.ai_outline import (
+    AIOutlineError,
+    AIOutlineProviderNotConfigured,
+    DeckOutline,
+    generate_ai_outline,
+    get_ai_outline_provider,
+)
 from app.deck.builder import ReportDeckBuilder
+from app.deck.extractor import FindingExtractor
 from app.deck.html_preview import render_deck_document_html
 from app.deck.layout_mapper import DeckLayoutMapper
 from app.deck.layout_schema import DeckDocument
@@ -51,6 +60,11 @@ class DeckProjectResponse(BaseModel):
     theme_json: dict[str, Any] = Field(default_factory=dict)
     created_at: str
     updated_at: str
+
+
+class AIOutlineResponse(BaseModel):
+    outline: DeckOutline
+    provider: str = "ai"
 
 
 def safe_artifact_stem(value: str) -> str:
@@ -97,6 +111,39 @@ async def create_deck_from_wave(
     except (DeckDataQualityError, DeckValidationError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return DeckProjectResponse(**deck_project_to_response(result.row))
+
+
+@router.post("/from-wave/outline/ai", response_model=AIOutlineResponse)
+async def create_ai_outline_from_wave(
+    request: CreateDeckFromWaveRequest,
+    x_deck_edit_token: str | None = Header(default=None),
+) -> AIOutlineResponse:
+    require_editor_token(x_deck_edit_token)
+    provider = get_provider(settings)
+    try:
+        wave_data = provider.get_wave_data(request.wave_id)
+        bundle = await BundleAssembler().build_bundle(
+            request.wave_id,
+            request.language,
+            wave_data=wave_data,
+        )
+        context = FindingExtractor().extract(
+            bundle,
+            wave_data,
+            allow_partial=request.allow_partial,
+        )
+        outline = await generate_ai_outline(
+            context,
+            provider=get_ai_outline_provider(),
+            audience=request.audience,
+        )
+    except (DeckDataQualityError, DeckValidationError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except AIOutlineProviderNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except AIOutlineError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return AIOutlineResponse(outline=outline)
 
 
 @router.post("/validate")
