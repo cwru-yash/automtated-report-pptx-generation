@@ -64,6 +64,32 @@ def test_from_wave_creates_persisted_deck(monkeypatch):
     assert fetched.status_code == 200
 
 
+def test_deck_readiness_reports_local_checks(monkeypatch):
+    monkeypatch.setattr(deck_routes, "ai_outline_enabled", lambda: False)
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/decks/readiness")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["deck_routes"] == "ok"
+    assert payload["local_persistence"] == "ok"
+    assert payload["pptx_export"] in {"ok", "error"}
+    assert payload["html_preview"] == "ok"
+    assert payload["ai_outline"] == "disabled"
+    assert isinstance(payload["details"], dict)
+
+
+def test_deck_readiness_reports_enabled_ai_outline(monkeypatch):
+    monkeypatch.setattr(deck_routes, "ai_outline_enabled", lambda: True)
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/decks/readiness")
+
+    assert response.status_code == 200
+    assert response.json()["ai_outline"] == "enabled"
+
+
 def test_ai_outline_from_wave_returns_validated_outline(monkeypatch):
     class ValidOutlineProvider:
         async def generate_outline(self, payload: dict) -> dict:

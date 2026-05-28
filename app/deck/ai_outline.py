@@ -122,6 +122,11 @@ def get_ai_outline_provider() -> AIOutlineProvider:
     return LiteLLMAIOutlineProvider()
 
 
+def ai_outline_enabled() -> bool:
+    """Return whether config is sufficient to try AI outline generation."""
+    return _llm_configured(settings.LLM_MODEL)
+
+
 async def generate_ai_outline(
     context: FindingsContext,
     *,

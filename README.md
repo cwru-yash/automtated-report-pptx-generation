@@ -76,6 +76,7 @@ The repo is still early, but the demo path works end to end. The API can:
 - expose structured batch and child-job logs for debugging
 
 If you want the exact demo flow, start with `docs/demo-dry-run.md`.
+For the editable report-to-deck demo, use `docs/demo_report_deck_workflow.md`.
 
 ## Run it locally
 

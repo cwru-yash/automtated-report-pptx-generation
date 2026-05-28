@@ -16,6 +16,7 @@ from app.deck.ai_outline import (
     AIOutlineError,
     AIOutlineProviderNotConfigured,
     DeckOutline,
+    ai_outline_enabled,
     generate_ai_outline,
     get_ai_outline_provider,
 )
@@ -71,6 +72,15 @@ class AcceptAIOutlineRequest(CreateDeckFromWaveRequest):
     outline: DeckOutline
 
 
+class DeckReadinessResponse(BaseModel):
+    deck_routes: str
+    local_persistence: str
+    pptx_export: str
+    html_preview: str
+    ai_outline: str
+    details: dict[str, str] = Field(default_factory=dict)
+
+
 def safe_artifact_stem(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]", "_", value)
 
@@ -115,6 +125,44 @@ async def create_deck_from_wave(
     except (DeckDataQualityError, DeckValidationError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return DeckProjectResponse(**deck_project_to_response(result.row))
+
+
+@router.get("/readiness", response_model=DeckReadinessResponse)
+async def deck_readiness() -> DeckReadinessResponse:
+    details: dict[str, str] = {}
+    local_persistence = "ok"
+    pptx_export = "ok"
+    html_preview = "ok"
+
+    try:
+        await DeckRepository().get("__deck_readiness_probe__")
+    except Exception as exc:
+        local_persistence = "error"
+        details["local_persistence"] = str(exc)
+
+    try:
+        from pptx import Presentation  # noqa: F401
+
+        ensure_template_registry_loaded()
+        registry.get_template("client_cvc_master")
+    except Exception as exc:
+        pptx_export = "error"
+        details["pptx_export"] = str(exc)
+
+    try:
+        render_deck_document_html(DeckLayoutMapper().demo_deck())
+    except Exception as exc:
+        html_preview = "error"
+        details["html_preview"] = str(exc)
+
+    return DeckReadinessResponse(
+        deck_routes="ok",
+        local_persistence=local_persistence,
+        pptx_export=pptx_export,
+        html_preview=html_preview,
+        ai_outline="enabled" if ai_outline_enabled() else "disabled",
+        details=details,
+    )
 
 
 @router.post("/from-wave/outline/ai", response_model=AIOutlineResponse)
