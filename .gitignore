@@ -26,3 +26,4 @@ output/*.png
 gcp-key.json
 *.db
 ai-reference-projects/
+decomposer-platform/
