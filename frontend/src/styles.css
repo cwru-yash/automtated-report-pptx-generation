@@ -125,6 +125,19 @@ button {
   color: #5c4413;
 }
 
+.success-banner {
+  margin: 14px 28px 0;
+  border-left: 4px solid #2d7a46;
+  padding: 12px 14px;
+  background: #f0fff5;
+  color: #1d5a32;
+}
+
+.success-banner a {
+  color: #17324d;
+  font-weight: 800;
+}
+
 .editor-grid {
   display: grid;
   grid-template-columns: 260px minmax(640px, 1fr) 270px;

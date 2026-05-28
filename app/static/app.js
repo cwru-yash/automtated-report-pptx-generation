@@ -20,6 +20,9 @@ const languageOptions = document.querySelector("#language-options");
 const generateButton = document.querySelector("#generate-button");
 const createDeckButton = document.querySelector("#create-deck-button");
 const deckStatus = document.querySelector("#deck-status");
+const deckSuccess = document.querySelector("#deck-success");
+const createdDeckId = document.querySelector("#created-deck-id");
+const createdDeckLink = document.querySelector("#created-deck-link");
 const runSummary = document.querySelector("#run-summary");
 const batchLogLink = document.querySelector("#batch-log-link");
 const resultsList = document.querySelector("#results-list");
@@ -221,6 +224,7 @@ async function createEditableDeck() {
   createDeckButton.disabled = true;
   deckStatus.textContent = "Creating editable deck...";
   deckStatus.className = "hint";
+  deckSuccess.hidden = true;
 
   try {
     const deck = await fetchJson("/api/v1/decks/from-wave", {
@@ -235,9 +239,12 @@ async function createEditableDeck() {
     if (!deckId) {
       throw new Error("Deck API did not return a deck id.");
     }
-    deckStatus.textContent = "Deck created. Opening editor...";
+    const deckUrl = `/decks/editor/${encodeURIComponent(deckId)}`;
+    deckStatus.textContent = "Deck created.";
     deckStatus.className = "hint ok";
-    window.location.href = `/decks/editor/${encodeURIComponent(deckId)}`;
+    createdDeckId.textContent = deckId;
+    createdDeckLink.href = deckUrl;
+    deckSuccess.hidden = false;
   } catch (error) {
     deckStatus.textContent = `Deck blocked: ${error.message}`;
     deckStatus.className = "hint bad";

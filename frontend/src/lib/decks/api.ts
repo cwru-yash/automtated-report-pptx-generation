@@ -80,3 +80,11 @@ export function deckPptxExportUrl(deckId: string, templateId = "client_cvc_maste
   const params = new URLSearchParams({ template_id: templateId });
   return `/api/v1/decks/${encodeURIComponent(deckId)}/export/pptx?${params.toString()}`;
 }
+
+export async function exportDeckPptx(deckId: string, templateId = "client_cvc_master"): Promise<Blob> {
+  const response = await fetch(deckPptxExportUrl(deckId, templateId));
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+  return response.blob();
+}

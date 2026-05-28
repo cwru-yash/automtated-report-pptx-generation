@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createDeckFromWave, deckPptxExportUrl, fetchDeck, fetchDemoDeck, saveDeck } from "../../lib/decks/api";
+import { createDeckFromWave, exportDeckPptx, fetchDeck, fetchDemoDeck, saveDeck } from "../../lib/decks/api";
 import { createDebouncedAction } from "../../lib/decks/debounce";
 import type { DeckDocument } from "../../lib/decks/deck-schema";
 import { useDeckStore } from "../../stores/useDeckStore";
@@ -11,6 +11,7 @@ import { SlideSidebar } from "./SlideSidebar";
 import { ThemePanel } from "./panels/ThemePanel";
 
 const AUTOSAVE_DELAY_MS = 1800;
+type ExportStatus = "idle" | "loading" | "error";
 
 function editMarker(deck: DeckDocument) {
   return typeof deck.metadata.edited_at === "string" ? deck.metadata.edited_at : "";
@@ -18,6 +19,9 @@ function editMarker(deck: DeckDocument) {
 
 export function DeckEditor() {
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [createdDeckLink, setCreatedDeckLink] = useState<{ deckId: string; url: string } | null>(null);
+  const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
+  const [exportError, setExportError] = useState("");
   const deck = useDeckStore((state) => state.currentDeck);
   const selectedSlideId = useDeckStore((state) => state.selectedSlideId);
   const saveState = useDeckStore((state) => state.saveState);
@@ -85,23 +89,43 @@ export function DeckEditor() {
       setError("Enter a wave ID before generating.");
       return;
     }
+    setCreatedDeckLink(null);
     setLoading("Creating deck from wave");
     try {
       const createdDeck = await createDeckFromWave(reportSourceId.trim());
       setDeck(createdDeck);
       setReady();
-      window.history.replaceState(null, "", `/decks/editor/${createdDeck.deck_id}`);
+      const url = `/decks/editor/${createdDeck.deck_id}`;
+      setCreatedDeckLink({ deckId: createdDeck.deck_id, url });
+      window.history.replaceState(null, "", url);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Deck generation failed";
       setError(message);
     }
   }
 
-  function handleExportPptx() {
+  async function handleExportPptx() {
     if (!deck) {
       return;
     }
-    window.open(deckPptxExportUrl(deck.deck_id), "_blank", "noopener,noreferrer");
+    setExportStatus("loading");
+    setExportError("");
+    try {
+      const blob = await exportDeckPptx(deck.deck_id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${deck.deck_id}.pptx`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setExportStatus("idle");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "PPT export failed";
+      setExportStatus("error");
+      setExportError(message);
+    }
   }
 
   if (previewOpen && deck) {
@@ -125,8 +149,8 @@ export function DeckEditor() {
           <button type="button" onClick={handleCreateFromWave} disabled={generationStatus === "loading"}>
             Create Editable Deck
           </button>
-          <button type="button" onClick={handleExportPptx} disabled={!deck}>
-            Export PPT
+          <button type="button" onClick={handleExportPptx} disabled={!deck || exportStatus === "loading"}>
+            {exportStatus === "loading" ? "Exporting..." : "Export PPT"}
           </button>
           <button type="button" onClick={() => setPreviewOpen(true)} disabled={!deck}>
             Preview
@@ -140,6 +164,13 @@ export function DeckEditor() {
       {generationStatus === "error" ? (
         <div className="error-banner">{generationErrors.at(-1) || "Generation failed."}</div>
       ) : null}
+      {createdDeckLink ? (
+        <div className="success-banner">
+          Created deck <code>{createdDeckLink.deckId}</code>.{" "}
+          <a href={createdDeckLink.url}>Open created deck</a>
+        </div>
+      ) : null}
+      {exportStatus === "error" ? <div className="error-banner">PPT export failed: {exportError}</div> : null}
 
       {deck ? (
         <div className="editor-grid">

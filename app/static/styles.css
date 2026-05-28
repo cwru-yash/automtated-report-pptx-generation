@@ -196,6 +196,25 @@ button:disabled {
   background: rgba(17, 100, 102, 0.06);
 }
 
+.deck-success {
+  display: grid;
+  gap: 0.65rem;
+  border: 1px solid rgba(33, 132, 76, 0.22);
+  border-radius: 6px;
+  padding: 0.75rem;
+  background: rgba(33, 132, 76, 0.06);
+}
+
+.deck-success[hidden] {
+  display: none;
+}
+
+.deck-success p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+
 .results {
   min-height: 24rem;
 }

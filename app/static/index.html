@@ -43,6 +43,10 @@
       <button id="create-deck-button" type="button">Create Editable Deck</button>
       <a class="secondary-link" href="/decks/editor">Open Deck Editor</a>
       <p class="hint" id="deck-status">Create a deck from the selected wave.</p>
+      <div class="deck-success" id="deck-success" hidden>
+        <p>Created deck: <code id="created-deck-id"></code></p>
+        <a class="secondary-link" id="created-deck-link" href="/decks/editor">Open Created Deck</a>
+      </div>
     </section>
 
     <section class="results" aria-label="Generation results">

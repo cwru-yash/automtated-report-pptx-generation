@@ -9,6 +9,7 @@ import { DeckEditor } from "./DeckEditor";
 const apiMocks = vi.hoisted(() => ({
   createDeckFromWave: vi.fn(),
   deckPptxExportUrl: vi.fn(),
+  exportDeckPptx: vi.fn(),
   fetchDeck: vi.fn(),
   fetchDemoDeck: vi.fn(),
   saveDeck: vi.fn(),
@@ -68,6 +69,7 @@ describe("DeckEditor autosave", () => {
     vi.clearAllMocks();
     window.history.replaceState(null, "", "/decks/editor");
     apiMocks.deckPptxExportUrl.mockReturnValue("/api/v1/decks/deck_autosave/export/pptx");
+    apiMocks.exportDeckPptx.mockResolvedValue(new Blob(["pptx"]));
     useDeckStore.setState({
       currentDeck: null,
       selectedSlideId: null,
@@ -153,7 +155,7 @@ describe("DeckEditor autosave", () => {
     expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_from_url");
   });
 
-  it("creates an editable deck from a wave and navigates to the editor URL", async () => {
+  it("creates an editable deck from a wave and shows an open link", async () => {
     const createdDeck = {
       ...baseDeck,
       deck_id: "deck_created_from_wave",
@@ -178,6 +180,10 @@ describe("DeckEditor autosave", () => {
     });
     expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_created_from_wave");
     expect(window.location.pathname).toBe("/decks/editor/deck_created_from_wave");
+    expect(screen.getByText("deck_created_from_wave")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /open created deck/i }).getAttribute("href")).toBe(
+      "/decks/editor/deck_created_from_wave"
+    );
   });
 
   it("shows the backend data-quality error when deck creation is blocked", async () => {
@@ -198,5 +204,22 @@ describe("DeckEditor autosave", () => {
     fireEvent.click(screen.getByRole("button", { name: /create editable deck/i }));
 
     expect(await screen.findByText(/Wave has no gold activity rows/)).toBeTruthy();
+  });
+
+  it("shows an export error and resets the export loading state", async () => {
+    apiMocks.fetchDemoDeck.mockResolvedValue({ ...baseDeck });
+    apiMocks.exportDeckPptx.mockRejectedValue(new Error("Template not found: missing_template"));
+
+    render(<DeckEditor />);
+
+    await waitFor(() => {
+      expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_autosave");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /export ppt/i }));
+
+    expect(await screen.findByText(/PPT export failed: Template not found/)).toBeTruthy();
+    const exportButton = screen.getByRole("button", { name: /export ppt/i }) as HTMLButtonElement;
+    expect(exportButton.disabled).toBe(false);
   });
 });
