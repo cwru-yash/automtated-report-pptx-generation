@@ -1,14 +1,18 @@
 __all__ = [
-    "PPTRenderer", "render_ppt",
+    "PPTRenderer", "render_ppt", "render_deck_document_ppt",
     "HTMLRenderer", "HTMLRenderMode", "render_html",
     "PDFRenderer", "render_pdf",
 ]
 
 
 def __getattr__(name):
-    if name in {"PPTRenderer", "render_ppt"}:
-        from app.renderers.ppt import PPTRenderer, render_ppt
-        return {"PPTRenderer": PPTRenderer, "render_ppt": render_ppt}[name]
+    if name in {"PPTRenderer", "render_ppt", "render_deck_document_ppt"}:
+        from app.renderers.ppt import PPTRenderer, render_deck_document_ppt, render_ppt
+        return {
+            "PPTRenderer": PPTRenderer,
+            "render_ppt": render_ppt,
+            "render_deck_document_ppt": render_deck_document_ppt,
+        }[name]
     if name in {"HTMLRenderer", "HTMLRenderMode", "render_html"}:
         from app.renderers.html import HTMLRenderer, HTMLRenderMode, render_html
         return {
