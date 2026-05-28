@@ -57,6 +57,53 @@ def test_from_wave_creates_persisted_deck(monkeypatch):
     assert fetched.status_code == 200
 
 
+def test_updated_deck_document_is_saved_and_reloaded(monkeypatch):
+    monkeypatch.setattr(settings, "DECK_EDITOR_TOKEN", "")
+    monkeypatch.setattr(settings, "WAVE_DATA_PROVIDER", "mock")
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/decks/from-wave",
+            json={"wave_id": "DEMO_WAVE_001"},
+        )
+        assert created.status_code == 200
+        deck_id = created.json()["id"]
+        deck = created.json()["deck_json"]
+        deck["title"] = "Edited Evidence Deck"
+        deck["slides"][0]["content"][0]["text"] = "Edited Evidence Deck"
+        deck["metadata"]["edited_by_test"] = True
+
+        saved = client.put(
+            f"/api/v1/decks/{deck_id}",
+            json={"deck": deck},
+        )
+        assert saved.status_code == 200
+
+        reloaded = client.get(f"/api/v1/decks/{deck_id}")
+
+    assert reloaded.status_code == 200
+    payload = reloaded.json()
+    assert payload["title"] == "Edited Evidence Deck"
+    assert payload["deck_json"]["title"] == "Edited Evidence Deck"
+    assert payload["deck_json"]["slides"][0]["content"][0]["text"] == "Edited Evidence Deck"
+    assert payload["deck_json"]["metadata"]["edited_by_test"] is True
+
+
+def test_invalid_deck_update_is_rejected_visibly(monkeypatch):
+    monkeypatch.setattr(settings, "DECK_EDITOR_TOKEN", "")
+
+    with TestClient(app) as client:
+        demo = client.get("/api/v1/decks/demo").json()["deck_json"]
+        demo["slides"][0]["content"][0]["type"] = "not_a_real_block"
+        response = client.put(
+            f"/api/v1/decks/{demo['deck_id']}",
+            json={"deck": demo},
+        )
+
+    assert response.status_code == 422
+    assert "not_a_real_block" in response.text
+
+
 def test_from_wave_blocks_bad_data_with_visible_error(monkeypatch):
     class NoGoldRowsProvider:
         def get_wave_data(self, wave_id: str) -> dict:
