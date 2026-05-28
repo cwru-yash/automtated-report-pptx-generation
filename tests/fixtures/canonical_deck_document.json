@@ -1,0 +1,112 @@
+{
+  "deck_id": "canonical_deck_fixture",
+  "title": "Canonical Evidence Deck",
+  "source_wave_id": "wave_fixture",
+  "source_project": "Fixture Project",
+  "theme": {
+    "name": "executive-light",
+    "font_family": "Aptos",
+    "primary_color": "#17324d",
+    "accent_color": "#c8a45d",
+    "background_color": "#f7f8f5",
+    "surface_color": "#ffffff",
+    "text_color": "#17202a",
+    "muted_text_color": "#5f6b7a"
+  },
+  "slides": [
+    {
+      "id": "slide_title",
+      "type": "title",
+      "title": "Canonical Evidence Deck",
+      "speaker_notes": "Introduce the source wave and evidence standard.",
+      "source_refs": ["wave_fixture"],
+      "content": [
+        {
+          "id": "block_title_heading",
+          "type": "heading",
+          "text": "Canonical Evidence Deck",
+          "level": 1
+        },
+        {
+          "id": "block_title_summary",
+          "type": "paragraph",
+          "text": "A shared fixture used to keep backend Pydantic and frontend Zod schemas aligned."
+        },
+        {
+          "id": "block_title_source",
+          "type": "source_note",
+          "text": "Source: tests/fixtures/canonical_deck_document.json"
+        }
+      ]
+    },
+    {
+      "id": "slide_finding",
+      "type": "finding",
+      "title": "Evidence-backed findings should preserve source references",
+      "speaker_notes": "Use only the cited evidence when presenting this slide.",
+      "source_refs": ["analysis_6", "chart_6"],
+      "content": [
+        {
+          "id": "block_finding_columns",
+          "type": "two_column",
+          "columns": [
+            {
+              "width": 48,
+              "content": [
+                {
+                  "id": "block_chart",
+                  "type": "chart_placeholder",
+                  "chart_ref": "chart_6",
+                  "title": "Achilles heel chart"
+                },
+                {
+                  "id": "block_metric",
+                  "type": "metric_card",
+                  "label": "Evidence score",
+                  "value": "56.25",
+                  "helper": "Source: analysis_6"
+                },
+                {
+                  "id": "block_table",
+                  "type": "table",
+                  "headers": ["Activity", "Score"],
+                  "rows": [["US10", 56.25]]
+                }
+              ]
+            },
+            {
+              "width": 52,
+              "content": [
+                {
+                  "id": "block_interpretation_heading",
+                  "type": "heading",
+                  "text": "Analyst interpretation",
+                  "level": 2
+                },
+                {
+                  "id": "block_bullets",
+                  "type": "bullet_list",
+                  "items": [
+                    "Keep the recommendation tied to the cited analysis.",
+                    "Do not invent missing metric values.",
+                    "Use activity codes as labels, not numeric evidence."
+                  ]
+                },
+                {
+                  "id": "block_callout",
+                  "type": "callout",
+                  "text": "Any new numeric claim must be present in the evidence registry.",
+                  "variant": "warning"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "fixture": "schema_parity",
+    "version": 1
+  }
+}
