@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     LLM_API_BASE: str = ""
 
     # App
+    DECK_EDITOR_TOKEN: str = ""
     TEMPLATES_DIR: str = "templates/"
     LOCALES_DIR: str = "locales/"
     LOGS_DIR: str = "logs/"

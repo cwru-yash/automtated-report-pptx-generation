@@ -34,12 +34,15 @@
       </fieldset>
 
       <div class="toggles">
-        <label><input id="use-llm" type="checkbox" checked> Real LLM output</label>
-        <label><input id="require-llm" type="checkbox" checked> Require LLM</label>
+        <label><input id="use-llm" type="checkbox"> Legacy LLM narrative</label>
+        <label><input id="require-llm" type="checkbox" disabled> Require LLM</label>
         <label><input id="include-pdf" type="checkbox" checked> PDF export</label>
       </div>
 
       <button id="generate-button" type="button">Generate Reports</button>
+      <button id="create-deck-button" type="button">Create Editable Deck</button>
+      <a class="secondary-link" href="/decks/editor">Open Deck Editor</a>
+      <p class="hint" id="deck-status">Create a deck from the selected wave.</p>
     </section>
 
     <section class="results" aria-label="Generation results">

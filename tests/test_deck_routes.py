@@ -1,6 +1,7 @@
 import os
 from copy import deepcopy
 
+import pytest
 from fastapi.testclient import TestClient
 
 os.environ.setdefault("WAVE_DATA_PROVIDER", "mock")
@@ -87,6 +88,26 @@ def test_updated_deck_document_is_saved_and_reloaded(monkeypatch):
     assert payload["deck_json"]["title"] == "Edited Evidence Deck"
     assert payload["deck_json"]["slides"][0]["content"][0]["text"] == "Edited Evidence Deck"
     assert payload["deck_json"]["metadata"]["edited_by_test"] is True
+
+
+def test_created_deck_can_export_pptx(monkeypatch):
+    pytest.importorskip("pptx")
+    monkeypatch.setattr(settings, "DECK_EDITOR_TOKEN", "")
+    monkeypatch.setattr(settings, "WAVE_DATA_PROVIDER", "mock")
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/decks/from-wave",
+            json={"wave_id": "DEMO_WAVE_001"},
+        )
+        assert created.status_code == 200
+        deck_id = created.json()["id"]
+
+        exported = client.get(f"/api/v1/decks/{deck_id}/export/pptx")
+
+    assert exported.status_code == 200
+    assert exported.content.startswith(b"PK")
+    assert "presentation" in exported.headers["content-type"]
 
 
 def test_invalid_deck_update_is_rejected_visibly(monkeypatch):

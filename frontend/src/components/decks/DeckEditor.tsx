@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createDeckFromWave, fetchDeck, fetchDemoDeck, saveDeck } from "../../lib/decks/api";
+import { createDeckFromWave, deckPptxExportUrl, fetchDeck, fetchDemoDeck, saveDeck } from "../../lib/decks/api";
 import { createDebouncedAction } from "../../lib/decks/debounce";
 import type { DeckDocument } from "../../lib/decks/deck-schema";
 import { useDeckStore } from "../../stores/useDeckStore";
@@ -27,6 +27,8 @@ export function DeckEditor() {
   const reportSourceId = usePromptStore((state) => state.reportSourceId);
   const setReportSourceId = usePromptStore((state) => state.setReportSourceId);
   const generationStatus = useGenerationStore((state) => state.generationStatus);
+  const activeStep = useGenerationStore((state) => state.activeStep);
+  const generationErrors = useGenerationStore((state) => state.errors);
   const setLoading = useGenerationStore((state) => state.setLoading);
   const setReady = useGenerationStore((state) => state.setReady);
   const setError = useGenerationStore((state) => state.setError);
@@ -95,6 +97,13 @@ export function DeckEditor() {
     }
   }
 
+  function handleExportPptx() {
+    if (!deck) {
+      return;
+    }
+    window.open(deckPptxExportUrl(deck.deck_id), "_blank", "noopener,noreferrer");
+  }
+
   if (previewOpen && deck) {
     return <PresentationMode deck={deck} onClose={() => setPreviewOpen(false)} />;
   }
@@ -110,11 +119,14 @@ export function DeckEditor() {
           <input
             value={reportSourceId}
             onChange={(event) => setReportSourceId(event.target.value)}
-            placeholder="Wave ID"
+            placeholder="Completed wave ID"
             aria-label="Wave ID"
           />
-          <button type="button" onClick={handleCreateFromWave}>
-            Generate
+          <button type="button" onClick={handleCreateFromWave} disabled={generationStatus === "loading"}>
+            Create Editable Deck
+          </button>
+          <button type="button" onClick={handleExportPptx} disabled={!deck}>
+            Export PPT
           </button>
           <button type="button" onClick={() => setPreviewOpen(true)} disabled={!deck}>
             Preview
@@ -124,7 +136,10 @@ export function DeckEditor() {
       </header>
 
       {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-      {generationStatus === "error" ? <div className="error-banner">Generation failed.</div> : null}
+      {generationStatus === "loading" ? <div className="status-banner">{activeStep}...</div> : null}
+      {generationStatus === "error" ? (
+        <div className="error-banner">{generationErrors.at(-1) || "Generation failed."}</div>
+      ) : null}
 
       {deck ? (
         <div className="editor-grid">

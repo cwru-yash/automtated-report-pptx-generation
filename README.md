@@ -109,6 +109,40 @@ curl -X POST http://127.0.0.1:8000/api/v1/jobs \
 
 Outputs land in `artifacts/`.
 
+## Interactive deck editor
+
+The editor is a small React/Vite app served by FastAPI. It uses the same
+validated deck plan, converts it into recursive editable deck JSON, and saves
+drafts into the local SQLAlchemy database.
+
+Install and build the editor:
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+Start the API and open:
+
+```text
+http://127.0.0.1:8000/decks/editor
+```
+
+Useful editor endpoints:
+
+```bash
+curl http://127.0.0.1:8000/api/v1/decks/demo
+
+curl -X POST http://127.0.0.1:8000/api/v1/decks/from-wave \
+  -H 'Content-Type: application/json' \
+  -d '{"wave_id": "DEMO_WAVE_001"}'
+```
+
+For local write protection, set `DECK_EDITOR_TOKEN` in `.env` and send it as
+`X-Deck-Edit-Token` on save requests.
+
 For a multilingual request, use the batch endpoint so one parent ID groups all
 language-specific children:
 

@@ -66,21 +66,32 @@ class SupabaseWaveDataProvider(WaveDataProvider):
     # ------------------------------------------------------------------
 
     def get_latest_wave_id(self) -> str:
-        """Return the wave_id of the most recently completed analysis run."""
+        """
+        Return the wave_id of the most recently completed, fully-analysed wave.
+        Prefers waves where analysis_types_completed has the most entries (real waves),
+        falling back to the most recent completed run if none have multi-type results.
+        """
         rows = self._supabase_get(
             "/rest/v1/analysis_runs"
             "?status=in.(complete,partial_complete)"
-            "&select=wave_id,finished_at"
+            "&select=wave_id,finished_at,analysis_types_completed"
             "&order=finished_at.desc"
-            "&limit=1"
+            "&limit=20"
         )
         if not rows:
             raise RuntimeError(
                 "No completed analysis_runs found in Supabase. "
                 "Run dcmp_analyses_runner_v1 first."
             )
-        wave_id = rows[0]["wave_id"]
-        logger.info("get_latest_wave_id → %s", wave_id)
+        # Prefer runs that actually completed multiple analyses (real production waves)
+        real_runs = [r for r in rows if len(r.get("analysis_types_completed") or []) > 0]
+        best = real_runs[0] if real_runs else rows[0]
+        wave_id = best["wave_id"]
+        logger.info(
+            "get_latest_wave_id → %s (analyses_completed=%s)",
+            wave_id,
+            best.get("analysis_types_completed"),
+        )
         return wave_id
 
     def get_wave_data(self, wave_id: str) -> dict:

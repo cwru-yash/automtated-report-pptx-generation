@@ -1,7 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 from uuid import uuid4
 
 from fastapi import FastAPI
@@ -11,6 +11,8 @@ import logging
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.core.database import init_db
+from app.deck.routes import router as deck_router
 from app.observability import StructuredEventLogger, read_jsonl
 from app.templates.registry import init_registry, registry
 
@@ -22,10 +24,20 @@ class ReportJobRequest(BaseModel):
     wave_id: str = Field(..., description="Completed Decomposer wave ID")
     language: str = Field(default="en-US", description="Locale for report labels and narrative")
     template_id: Optional[str] = Field(
-        default="demo_master",
+        default="client_cvc_master",
         description="Registered PPT template ID. Use null to skip PPT rendering.",
     )
-    use_llm: bool = Field(default=True, description="Use LLM-backed LangGraph narrative nodes")
+    deck_mode: Literal["planned", "legacy"] = Field(
+        default="planned",
+        description="Use deterministic evidence-backed deck planning or legacy narrative rendering",
+    )
+    allow_partial: bool = Field(
+        default=False,
+        description="Allow diagnostic output from incomplete wave data",
+    )
+    audience: str = Field(default="executive stakeholders", description="Target deck audience")
+    tone: str = Field(default="consulting", description="Deck communication tone")
+    use_llm: bool = Field(default=False, description="Use LLM-backed LangGraph narrative nodes in legacy mode")
     require_llm: bool = Field(default=False, description="Fail sections instead of using fallback text")
     include_pdf: bool = Field(default=True, description="Render PDF artifact when WeasyPrint is available")
     output_dir: str = Field(default="artifacts", description="Local output directory for demo artifacts")
@@ -51,10 +63,20 @@ class BatchReportJobRequest(BaseModel):
         description="Locales to generate as independent child jobs.",
     )
     template_id: Optional[str] = Field(
-        default="demo_master",
+        default="client_cvc_master",
         description="Registered PPT template ID. Use null to skip PPT rendering.",
     )
-    use_llm: bool = Field(default=True, description="Use LLM-backed LangGraph narrative nodes")
+    deck_mode: Literal["planned", "legacy"] = Field(
+        default="planned",
+        description="Use deterministic evidence-backed deck planning or legacy narrative rendering",
+    )
+    allow_partial: bool = Field(
+        default=False,
+        description="Allow diagnostic output from incomplete wave data",
+    )
+    audience: str = Field(default="executive stakeholders", description="Target deck audience")
+    tone: str = Field(default="consulting", description="Deck communication tone")
+    use_llm: bool = Field(default=False, description="Use LLM-backed LangGraph narrative nodes in legacy mode")
     require_llm: bool = Field(default=False, description="Fail sections instead of using fallback text")
     include_pdf: bool = Field(default=True, description="Render PDF artifact when WeasyPrint is available")
     output_dir: str = Field(default="artifacts", description="Local output directory for demo artifacts")
@@ -174,6 +196,7 @@ def prewarm_demo_dependencies(app: FastAPI) -> None:
 async def lifespan(app: FastAPI):
     logger.info("Application starting up... Settings loaded securely.")
     init_registry(settings.TEMPLATES_DIR)
+    await init_db()
     prewarm_demo_dependencies(app)
     yield
     logger.info("Application shutting down...")
@@ -181,14 +204,31 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Automated Report Platform", lifespan=lifespan)
 STATIC_DIR = Path(__file__).parent / "static"
 ARTIFACTS_DIR = Path("artifacts")
+DECK_EDITOR_DIST_DIR = Path("frontend") / "dist"
 ARTIFACTS_DIR.mkdir(exist_ok=True)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.mount("/artifacts", StaticFiles(directory=ARTIFACTS_DIR), name="artifacts")
+app.mount(
+    "/decks/editor/assets",
+    StaticFiles(directory=DECK_EDITOR_DIST_DIR / "assets", check_dir=False),
+    name="deck-editor-assets",
+)
+
+app.include_router(deck_router)
 
 
 @app.get("/", include_in_schema=False)
 def report_console():
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/decks/editor", include_in_schema=False)
+@app.get("/decks/editor/{deck_id}", include_in_schema=False)
+def deck_editor(deck_id: str | None = None):
+    index_path = DECK_EDITOR_DIST_DIR / "index.html"
+    if index_path.is_file():
+        return FileResponse(index_path)
     return FileResponse(STATIC_DIR / "index.html")
 
 @app.get("/health")
@@ -270,10 +310,12 @@ async def execute_report_job(
             "wave_id": request.wave_id,
             "language": request.language,
             "template_id": request.template_id,
+            "deck_mode": request.deck_mode,
         },
     )
     event_log.emit(
         "job.started",
+        deck_mode=request.deck_mode,
         use_llm=request.use_llm,
         require_llm=request.require_llm,
         include_pdf=request.include_pdf,
@@ -307,26 +349,90 @@ async def execute_report_job(
             }
         )
 
-        narrative = await run_narrative_engine_async(
-            bundle,
-            use_llm=request.use_llm,
-            require_llm=request.require_llm,
-        )
-        sections = narrative.get("sections", {})
-        ppt_sections = narrative.get("ppt_sections", {})
-        llm_metadata = narrative.get("llm_metadata", {})
-        warnings = [str(error) for error in narrative.get("errors", [])]
-        status = "failed" if request.require_llm and warnings else "completed"
-        event_log.emit(
-            "narrative.completed",
-            status=status,
-            section_count=len(sections),
-            llm_modes={
-                key: value.get("mode")
-                for key, value in llm_metadata.items()
-            },
-            warning_count=len(warnings),
-        )
+        deck_plan = None
+        warnings: list[str] = []
+
+        if request.deck_mode == "planned":
+            from app.deck.extractor import FindingExtractor
+            from app.deck.planner import SlidePlanner
+            from app.deck.schema import DeckDataQualityError, DeckValidationError
+
+            try:
+                findings_context = FindingExtractor().extract(
+                    bundle,
+                    wave_data,
+                    allow_partial=request.allow_partial,
+                )
+                deck_plan = SlidePlanner().create_plan(
+                    findings_context,
+                    bundle,
+                    audience=request.audience,
+                    tone=request.tone,
+                )
+                sections = deck_plan.as_sections()
+                ppt_sections = sections
+                llm_metadata = {
+                    "deck_mode": "planned",
+                    "llm_used": False,
+                    "finding_count": len(findings_context.findings),
+                    "slide_count": len(deck_plan.slides),
+                }
+                warnings = list(deck_plan.validation_warnings)
+                if request.use_llm:
+                    warnings.append(
+                        "LLM request ignored for planned deck mode; deterministic planner used."
+                    )
+                status = "completed"
+                event_log.emit(
+                    "deck_plan.completed",
+                    status=status,
+                    finding_count=len(findings_context.findings),
+                    slide_count=len(deck_plan.slides),
+                    warning_count=len(warnings),
+                )
+            except (DeckDataQualityError, DeckValidationError) as exc:
+                status = "failed"
+                warnings = [str(exc)]
+                event_log.emit(
+                    "job.failed",
+                    level="warning",
+                    reason="deck_plan_blocked",
+                    warning_count=len(warnings),
+                    error=str(exc),
+                )
+                return ReportJobResponse(
+                    job_id=job_id,
+                    batch_id=batch_id,
+                    status=status,
+                    bundle=bundle.model_dump(),
+                    sections={},
+                    ppt_sections={},
+                    llm_metadata={"deck_mode": "planned", "llm_used": False},
+                    artifacts={},
+                    warnings=warnings,
+                    logs_url=f"/api/v1/jobs/{job_id}/logs",
+                )
+        else:
+            narrative = await run_narrative_engine_async(
+                bundle,
+                use_llm=request.use_llm,
+                require_llm=request.require_llm,
+            )
+            sections = narrative.get("sections", {})
+            ppt_sections = narrative.get("ppt_sections", {})
+            llm_metadata = narrative.get("llm_metadata", {})
+            warnings = [str(error) for error in narrative.get("errors", [])]
+            status = "failed" if request.require_llm and warnings else "completed"
+            event_log.emit(
+                "narrative.completed",
+                status=status,
+                section_count=len(sections),
+                llm_modes={
+                    key: value.get("mode")
+                    for key, value in llm_metadata.items()
+                },
+                warning_count=len(warnings),
+            )
 
         artifacts: Dict[str, str] = {}
 
@@ -350,6 +456,16 @@ async def execute_report_job(
                 logs_url=f"/api/v1/jobs/{job_id}/logs",
             )
 
+        if deck_plan:
+            slide_plan_path = output_dir / f"{job_id}_slide_plan.json"
+            slide_plan_path.write_text(deck_plan.model_dump_json(indent=2), encoding="utf-8")
+            artifacts["slide_plan"] = str(slide_plan_path)
+            event_log.emit(
+                "artifact.written",
+                artifact_type="slide_plan",
+                path=str(slide_plan_path),
+            )
+
         html = html_renderer.render(bundle, sections, language=request.language)
         html_path = output_dir / f"{job_id}.html"
         html_path.write_text(html, encoding="utf-8")
@@ -357,7 +473,10 @@ async def execute_report_job(
         event_log.emit("artifact.written", artifact_type="html", path=str(html_path))
 
         # Generate charts
-        charts = chart_generator.render_all(wave_data)
+        charts = chart_generator.render_all(
+            wave_data,
+            skip_empty=request.deck_mode == "planned",
+        )
         chart_paths = {}
         for analysis_type, png_bytes in charts.items():
             cpath = output_dir / f"{job_id}_chart_{analysis_type}.png"
@@ -366,6 +485,22 @@ async def execute_report_job(
         
         if chart_paths:
             event_log.emit("charts.rendered", count=len(chart_paths))
+
+        if deck_plan:
+            expected_charts = {
+                chart_ref
+                for slide in deck_plan.slides
+                for chart_ref in slide.chart_refs
+            }
+            missing_charts = sorted(expected_charts - set(chart_paths))
+            for chart_ref in missing_charts:
+                warnings.append(f"Chart skipped because no valid plot points were rendered: {chart_ref}")
+            if missing_charts:
+                event_log.emit(
+                    "charts.skipped",
+                    level="warning",
+                    chart_refs=missing_charts,
+                )
 
         if request.template_id:
             try:
@@ -376,6 +511,7 @@ async def execute_report_job(
                     request.template_id,
                     str(ppt_path),
                     images=chart_paths,
+                    deck_plan=deck_plan,
                 )
                 artifacts["pptx"] = str(ppt_path)
                 event_log.emit("artifact.written", artifact_type="pptx", path=str(ppt_path))
@@ -484,11 +620,13 @@ async def create_report_batch(request: BatchReportJobRequest):
         context={
             "wave_id": request.wave_id,
             "template_id": request.template_id,
+            "deck_mode": request.deck_mode,
         },
     )
     batch_log.emit(
         "batch.started",
         languages=languages,
+        deck_mode=request.deck_mode,
         use_llm=request.use_llm,
         require_llm=request.require_llm,
         include_pdf=request.include_pdf,
@@ -500,6 +638,10 @@ async def create_report_batch(request: BatchReportJobRequest):
             wave_id=request.wave_id,
             language=language,
             template_id=request.template_id,
+            deck_mode=request.deck_mode,
+            allow_partial=request.allow_partial,
+            audience=request.audience,
+            tone=request.tone,
             use_llm=request.use_llm,
             require_llm=request.require_llm,
             include_pdf=request.include_pdf,

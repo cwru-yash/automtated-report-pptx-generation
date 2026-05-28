@@ -180,6 +180,22 @@ button:disabled {
   opacity: 0.65;
 }
 
+.secondary-link {
+  display: grid;
+  min-height: 2.7rem;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.secondary-link:hover {
+  border-color: var(--accent);
+  background: rgba(17, 100, 102, 0.06);
+}
+
 .results {
   min-height: 24rem;
 }

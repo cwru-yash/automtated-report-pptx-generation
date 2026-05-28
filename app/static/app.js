@@ -10,6 +10,7 @@ const artifactLabels = {
   html: "HTML",
   pptx: "PPTX",
   pdf: "PDF",
+  slide_plan: "Slide Plan",
 };
 
 const healthPill = document.querySelector("#health-pill");
@@ -17,6 +18,8 @@ const templateSelect = document.querySelector("#template-id");
 const templateStatus = document.querySelector("#template-status");
 const languageOptions = document.querySelector("#language-options");
 const generateButton = document.querySelector("#generate-button");
+const createDeckButton = document.querySelector("#create-deck-button");
+const deckStatus = document.querySelector("#deck-status");
 const runSummary = document.querySelector("#run-summary");
 const batchLogLink = document.querySelector("#batch-log-link");
 const resultsList = document.querySelector("#results-list");
@@ -27,9 +30,24 @@ const requireLlmCheckbox = document.querySelector("#require-llm");
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
+    const text = await response.text();
+    let message = text || `${response.status} ${response.statusText}`;
+    try {
+      const payload = JSON.parse(text);
+      if (typeof payload.detail === "string") {
+        message = payload.detail;
+      }
+    } catch {
+      // Keep the raw response text when the error body is not JSON.
+    }
+    throw new Error(message);
   }
   return response.json();
+}
+
+function editorTokenHeaders() {
+  const token = window.localStorage.getItem("deck-editor-token");
+  return token ? { "X-Deck-Edit-Token": token } : {};
 }
 
 function artifactUrl(path) {
@@ -167,6 +185,7 @@ async function generateReports() {
   languages.forEach((language) => updateRow(language, "Running"));
 
   try {
+    const legacyMode = useLlmCheckbox.checked;
     const batch = await fetchJson("/api/v1/batches", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -174,8 +193,9 @@ async function generateReports() {
         wave_id: document.querySelector("#wave-id").value.trim() || "demo-wave",
         languages,
         template_id: templateSelect.value || null,
-        use_llm: useLlmCheckbox.checked,
-        require_llm: requireLlmCheckbox.checked,
+        deck_mode: legacyMode ? "legacy" : "planned",
+        use_llm: legacyMode,
+        require_llm: legacyMode && requireLlmCheckbox.checked,
         include_pdf: document.querySelector("#include-pdf").checked,
       }),
     });
@@ -196,6 +216,36 @@ async function generateReports() {
   }
 }
 
+async function createEditableDeck() {
+  const waveId = document.querySelector("#wave-id").value.trim() || "demo-wave";
+  createDeckButton.disabled = true;
+  deckStatus.textContent = "Creating editable deck...";
+  deckStatus.className = "hint";
+
+  try {
+    const deck = await fetchJson("/api/v1/decks/from-wave", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...editorTokenHeaders(),
+      },
+      body: JSON.stringify({ wave_id: waveId }),
+    });
+    const deckId = deck.id || deck.deck_json?.deck_id;
+    if (!deckId) {
+      throw new Error("Deck API did not return a deck id.");
+    }
+    deckStatus.textContent = "Deck created. Opening editor...";
+    deckStatus.className = "hint ok";
+    window.location.href = `/decks/editor/${encodeURIComponent(deckId)}`;
+  } catch (error) {
+    deckStatus.textContent = `Deck blocked: ${error.message}`;
+    deckStatus.className = "hint bad";
+  } finally {
+    createDeckButton.disabled = false;
+  }
+}
+
 useLlmCheckbox.addEventListener("change", () => {
   if (!useLlmCheckbox.checked) {
     requireLlmCheckbox.checked = false;
@@ -205,6 +255,7 @@ useLlmCheckbox.addEventListener("change", () => {
 
 templateSelect.addEventListener("change", inspectTemplate);
 generateButton.addEventListener("click", generateReports);
+createDeckButton.addEventListener("click", createEditableDeck);
 
 Promise.all([loadHealth(), loadTemplates(), loadLocales()]).catch((error) => {
   runSummary.textContent = error.message;

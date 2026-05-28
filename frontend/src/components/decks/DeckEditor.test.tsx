@@ -1,4 +1,4 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DeckDocument } from "../../lib/decks/deck-schema";
 import { useDeckStore } from "../../stores/useDeckStore";
@@ -8,6 +8,7 @@ import { DeckEditor } from "./DeckEditor";
 
 const apiMocks = vi.hoisted(() => ({
   createDeckFromWave: vi.fn(),
+  deckPptxExportUrl: vi.fn(),
   fetchDeck: vi.fn(),
   fetchDemoDeck: vi.fn(),
   saveDeck: vi.fn(),
@@ -65,6 +66,8 @@ const baseDeck: DeckDocument = {
 describe("DeckEditor autosave", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState(null, "", "/decks/editor");
+    apiMocks.deckPptxExportUrl.mockReturnValue("/api/v1/decks/deck_autosave/export/pptx");
     useDeckStore.setState({
       currentDeck: null,
       selectedSlideId: null,
@@ -131,5 +134,69 @@ describe("DeckEditor autosave", () => {
       text: "Second edit",
     });
     expect(useDeckStore.getState().saveState).toBe("dirty");
+  });
+
+  it("loads a persisted deck when the editor URL includes a deck id", async () => {
+    window.history.replaceState(null, "", "/decks/editor/deck_from_url");
+    apiMocks.fetchDeck.mockResolvedValue({
+      ...baseDeck,
+      deck_id: "deck_from_url",
+      title: "Loaded From URL",
+    });
+
+    render(<DeckEditor />);
+
+    await waitFor(() => {
+      expect(apiMocks.fetchDeck).toHaveBeenCalledWith("deck_from_url");
+    });
+    expect(screen.getByText("Loaded From URL")).toBeTruthy();
+    expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_from_url");
+  });
+
+  it("creates an editable deck from a wave and navigates to the editor URL", async () => {
+    const createdDeck = {
+      ...baseDeck,
+      deck_id: "deck_created_from_wave",
+      title: "Created From Wave",
+    };
+    apiMocks.fetchDemoDeck.mockResolvedValue({ ...baseDeck });
+    apiMocks.createDeckFromWave.mockResolvedValue(createdDeck);
+
+    render(<DeckEditor />);
+
+    await waitFor(() => {
+      expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_autosave");
+    });
+
+    fireEvent.change(screen.getByLabelText("Wave ID"), {
+      target: { value: "DEMO_WAVE_001" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create editable deck/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createDeckFromWave).toHaveBeenCalledWith("DEMO_WAVE_001");
+    });
+    expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_created_from_wave");
+    expect(window.location.pathname).toBe("/decks/editor/deck_created_from_wave");
+  });
+
+  it("shows the backend data-quality error when deck creation is blocked", async () => {
+    apiMocks.fetchDemoDeck.mockResolvedValue({ ...baseDeck });
+    apiMocks.createDeckFromWave.mockRejectedValue(
+      new Error("Wave has no gold activity rows; deck generation blocked.")
+    );
+
+    render(<DeckEditor />);
+
+    await waitFor(() => {
+      expect(useDeckStore.getState().currentDeck?.deck_id).toBe("deck_autosave");
+    });
+
+    fireEvent.change(screen.getByLabelText("Wave ID"), {
+      target: { value: "BAD_WAVE" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create editable deck/i }));
+
+    expect(await screen.findByText(/Wave has no gold activity rows/)).toBeTruthy();
   });
 });
